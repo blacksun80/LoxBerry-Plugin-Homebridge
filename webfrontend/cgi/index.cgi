@@ -101,7 +101,7 @@ $urlhomebridge = "$ENV{'SERVER_NAME'}".":8081";
 # Print Template
 
 # Create Help page
-$helplink = "https://github.com/bwssytems/ha-bridge";
+$helplink = "https://loxwiki.atlassian.net/wiki/spaces/LOXBERRY/pages/1661304839/Homebridge";
 open(F,"$installfolder/templates/plugins/$psubfolder/$lang/help.html") || die "Missing template plugins/$psubfolder/$lang/help.html";
   @help = <F>;
   foreach (@help)
