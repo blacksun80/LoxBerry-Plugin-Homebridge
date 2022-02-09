@@ -95,7 +95,7 @@ if ( param('do') ) {
 
 # Vars for template
 $template_title = "LoxBerry: Homebridge Plugin";
-$urlhomebridge = "$ENV{'SERVER_NAME'}".":8081";
+$urlhomebridge = "$ENV{'SERVER_NAME'}".":8082";
 #$habridgestatus = qx($installfolder/system/daemons/plugins/$psubfolder status);
 
 # Print Template

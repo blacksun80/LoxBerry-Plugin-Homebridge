@@ -8,7 +8,7 @@
     "platforms": [
         {
             "name": "Config",
-            "port": 8081,
+            "port": 8082,
             "auth": "form",
             "theme": "red",
             "restart": "sudo -n systemctl restart homebridge",
