@@ -75,7 +75,7 @@ echo "<INFO> Service homebridge erzeugen"
 systemctl enable homebridge
 systemctl daemon-reload
 
-if [ ! -f "/tmp/config.json" ]
+if [ ! -f "/tmp/homebridge/config.json" ]
 then
     echo "<INFO> Keine Konfigurationsdatei zum Wiederherstellen vorhanden"
 else
