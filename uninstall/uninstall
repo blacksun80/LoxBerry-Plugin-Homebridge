@@ -59,14 +59,15 @@ echo "<INFO> Plugin BIN folder is: $PBIN"
 
 echo "<INFO> Stoppe Service Homebridge"
 systemctl stop homebridge
-systemctl disable homebridge
-systemctl daemon-reload
 
 echo "<INFO> Lösche Datei homebridge /etc/default/homebridge"
 rm /etc/default/homebridge
 
 echo "<INFO> Lösche Datei homebridge.service /etc/systemd/system/homebridge.service"
 rm /etc/systemd/system/homebridge.service
+
+systemctl disable homebridge
+systemctl daemon-reload
 
 # Homebridge Config UI deinstallieren
 npm uninstall -g --unsafe-perm homebridge-config-ui-x
