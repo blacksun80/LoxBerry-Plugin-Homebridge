@@ -65,29 +65,46 @@ npm install -g --unsafe-perm homebridge
 # Homebridge Config UI installieren
 npm install -g --unsafe-perm homebridge-config-ui-x
 
-echo "<INFO> Copy homebridge.service"
+echo "<INFO> Kopiere Datei homebridge.service."
 cp -r $5/bin/plugins/$3/homebridge.service /etc/systemd/system
 
-echo "<INFO> Copy homebridge"
+echo "<INFO> Kopiere Datei homebridge."
 cp -r $5/bin/plugins/$3/homebridge /etc/default
 
-echo "<INFO> Service homebridge"
+echo "<INFO> Service homebridge erzeugen"
 systemctl daemon-reload
 systemctl enable homebridge
 
 if [ ! -f "/tmp/config.json" ]
 then
-    echo "<INFO> Starting Homebridge"
-    systemctl start homebridge
-	exit 0
+    echo "<INFO> Keine Konfigurationsdatei zum Wiederherstellen vorhanden"
+else
+    echo "<INFO> Konfigurationsdatei config.json wiederherstellen"
+    cp /tmp/config.json $5/config/plugins/$3/config.json
+    rm -f /tmp/config.json
 fi
 
-echo "<INFO> Recover config.json backup"
-cp /tmp/config.json $5/config/plugins/$3/config.json
-rm -f /tmp/config.json
-
-echo "<INFO> Starting Homebridge"
-systemctl start homebridge
-
-# Exit with Status 0
-exit 0
+# Ist der Service homebridge installiert?
+status="$(systemctl list-units | grep homebridge)"
+if [ "${status}" ]
+then
+    echo "<INFO> Service homebridge wurde installiert"
+    
+    # Service homebridge starten
+    echo "<INFO> Starte Service Homebridge..."
+    systemctl start homebridge
+    
+    # Läuft der Service homebridge aktuell?
+    status="$(systemctl is-active homebridge.service)"
+    if [ "${status}" = "active" ] 
+    then
+        echo "<INFO> Service homebridge wurde erfolgreich gestartet"
+        exit 0
+    else
+        echo "<ERROR> Service homebridge konnte nicht gestartet"
+        exit 1
+    fi
+else
+    echo "<ERROR> Service homebridge konnte nicht installiert werden"
+    exit 1
+fi

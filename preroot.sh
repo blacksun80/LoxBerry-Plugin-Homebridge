@@ -57,13 +57,34 @@ echo "<INFO> Plugin Data folder is: $PDATA"
 echo "<INFO> Plugin Log folder (on RAMDISK!) is: $PLOG"
 echo "<INFO> Plugin CONFIG folder is: $PCONFIG"
 
-echo "<INFO> Stopping Homebridge"
-systemctl stop homebridge
-
-if [ ! -f "$5/config/plugins/$3/config.json" ]
+# Ist der Service homebridge installiert?
+status="$(systemctl list-units | grep homebridge)"
+if [ "${status}" ]
 then
-	return 0
+    echo "<INFO> Service homebridge bereits installiert."
+    
+    # Läuft der Service homebridge aktuell?
+    status="$(systemctl is-active homebridge.service)"
+    if [ "${status}" = "active" ] 
+    then
+        echo "<INFO> Service homebridge läuft aktuell."
+        # Service homebridge stoppen
+        echo "<INFO> Service homebridge wird gestoppt."
+        systemctl stop homebridge
+    else
+        echo "<INFO> Service homebridge läuft aktuell nicht."
+    fi
+else
+    echo "<INFO> Service homebridge.service noch nicht installiert."
+    exit 0
 fi
 
-echo "<INFO> Backup config.json"
-cp $5/config/plugins/$3/config.json /tmp/config.json
+# Konfigurationsdatei sichern, wenn vorhanden
+if [ ! -f "$5/config/plugins/$3/config.json" ]
+then
+    echo "<INFO> Keine Konfigurationsdatei zum sichern vorhanden."
+    exit 0
+else
+    echo "<INFO> Sichere Konfigurationsdatei config.json."
+    cp $5/config/plugins/$3/config.json /tmp/config.json
+fi

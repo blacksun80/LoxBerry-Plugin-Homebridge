@@ -57,15 +57,15 @@ echo "<INFO> Plugin CONFIG folder is: $PCONFIG"
 echo "<INFO> Plugin SBIN folder is: $PSBIN"
 echo "<INFO> Plugin BIN folder is: $PBIN"
 
-echo "<INFO> Stopping Homebridge"
+echo "<INFO> Stoppe Service Homebridge"
 systemctl stop homebridge
 systemctl disable homebridge
 systemctl daemon-reload
 
-echo "<INFO> Delete /etc/default/homebridge"
+echo "<INFO> Lösche Datei homebridge /etc/default/homebridge"
 rm /etc/default/homebridge
 
-echo "<INFO> Delete /etc/systemd/system/homebridge.service"
+echo "<INFO> Lösche Datei homebridge.service /etc/systemd/system/homebridge.service"
 rm /etc/systemd/system/homebridge.service
 
 # Homebridge Config UI deinstallieren
