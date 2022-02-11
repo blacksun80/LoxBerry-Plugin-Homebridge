@@ -85,6 +85,6 @@ then
     echo "<INFO> Keine Konfigurationsdatei zum sichern vorhanden."
     exit 0
 else
-    echo "<INFO> Sichere Konfigurationsdatei config.json."
-    cp $5/config/plugins/$3/config.json /tmp/config.json
+    echo "<INFO> Sichere Konfigurationsdateien config.json."
+    cp -ar $5/config/plugins/$3/ /tmp/
 fi

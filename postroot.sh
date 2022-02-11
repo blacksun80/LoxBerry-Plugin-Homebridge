@@ -80,8 +80,8 @@ then
     echo "<INFO> Keine Konfigurationsdatei zum Wiederherstellen vorhanden"
 else
     echo "<INFO> Konfigurationsdatei config.json wiederherstellen"
-    cp /tmp/config.json $5/config/plugins/$3/config.json
-    rm -f /tmp/config.json
+    cp -ar /tmp/homebridge /$5/config/plugins/
+    rm -r /tmp/homebridge
 fi
 
 # Ist der Service homebridge installiert?
