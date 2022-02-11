@@ -58,7 +58,7 @@ echo "<INFO> Plugin Log folder (on RAMDISK!) is: $PLOG"
 echo "<INFO> Plugin CONFIG folder is: $PCONFIG"
 
 # Ist der Service homebridge installiert?
-status="$(systemctl list-units | grep homebridge)"
+status="$(systemctl status homebridge | grep homebridge)"
 if [ "${status}" ]
 then
     echo "<INFO> Service homebridge bereits installiert."
