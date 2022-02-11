@@ -72,8 +72,8 @@ echo "<INFO> Kopiere Datei homebridge."
 cp -r $5/bin/plugins/$3/homebridge /etc/default
 
 echo "<INFO> Service homebridge erzeugen"
-systemctl daemon-reload
 systemctl enable homebridge
+systemctl daemon-reload
 
 if [ ! -f "/tmp/config.json" ]
 then
@@ -85,7 +85,7 @@ else
 fi
 
 # Ist der Service homebridge installiert?
-status="$(systemctl list-units | grep homebridge)"
+status="$(systemctl status homebridge | grep homebridge)"
 if [ "${status}" ]
 then
     echo "<INFO> Service homebridge wurde installiert"
