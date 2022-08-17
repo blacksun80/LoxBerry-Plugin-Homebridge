@@ -89,14 +89,17 @@ else
     cp -ar $5/config/plugins/$3/ /tmp/
 fi
 
+# Install latest version of npm
+npm install -g npm@latest
+
 # Clear NPM's cache
 npm cache clean -f
 
-# Install stable version of npm
-npm install -g npm stable
-
 # Install n
 npm install -g n
+
+# Clear NPM's cache
+npm cache clean -f
 
 # Install stable Node.js version
 n stable
