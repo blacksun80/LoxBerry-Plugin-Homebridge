@@ -88,3 +88,12 @@ else
     echo "<INFO> Sichere Konfigurationsdateien config.json."
     cp -ar $5/config/plugins/$3/ /tmp/
 fi
+
+# Clear NPM's cache
+npm cache clean -f
+
+# Install latest version of NPM
+npm install -g npm@latest
+
+# Install latest Node.js version
+n latest
