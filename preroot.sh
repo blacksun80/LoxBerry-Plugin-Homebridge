@@ -92,7 +92,10 @@ fi
 # Clear NPM's cache
 npm cache clean -f
 
-# Install latest version of NPM
+# Install stable version of npm
+npm install -g npm stable
+
+# Install n
 npm install -g n
 
 # Install stable Node.js version
