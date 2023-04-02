@@ -63,4 +63,7 @@ npm install -g --unsafe-perm homebridge homebridge-config-ui-x
 echo "<INFO> Dienst für homebridge einrichten und homebridge starten"
 hb-service -U $5/config/plugins/homebridge --user loxberry --port 8082 install
 
+# Homebridge neustarten, da der Port 8082 erst nach einem Restart verwendet wird
+echo "<INFO> Dienst homebridge neustarten"
+hb-service restart
 exit 0
