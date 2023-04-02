@@ -58,5 +58,6 @@ echo "<INFO> Plugin SBIN folder is: $PSBIN"
 echo "<INFO> Plugin BIN folder is: $PBIN"
 
 echo "<INFO> Stoppe Service und Deinstallieren der Homebridge"
-hb-service -U opt/loxberry/config/plugins/homebridge uninstall
+hb-service stop
+hb-service uninstall
 exit 0
