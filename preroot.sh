@@ -57,49 +57,37 @@ echo "<INFO> Plugin Data folder is: $PDATA"
 echo "<INFO> Plugin Log folder (on RAMDISK!) is: $PLOG"
 echo "<INFO> Plugin CONFIG folder is: $PCONFIG"
 
-# Ist der Service homebridge installiert?
-status="$(systemctl status homebridge | grep homebridge)"
-if [ "${status}" ]
-then
-    echo "<INFO> Service homebridge bereits installiert."
+# # Ist der Service homebridge installiert?
+# status="$(systemctl status homebridge | grep homebridge)"
+# if [ "${status}" ]
+# then
+    # echo "<INFO> Service homebridge bereits installiert."
     
-    # Läuft der Service homebridge aktuell?
-    status="$(systemctl is-active homebridge.service)"
-    if [ "${status}" = "active" ] 
-    then
-        echo "<INFO> Service homebridge läuft aktuell."
-        # Service homebridge stoppen
-        echo "<INFO> Service homebridge wird gestoppt."
-        systemctl stop homebridge
-    else
-        echo "<INFO> Service homebridge läuft aktuell nicht."
-    fi
-else
-    echo "<INFO> Service homebridge.service noch nicht installiert."
-    exit 0
-fi
+    # # Läuft der Service homebridge aktuell?
+    # status="$(systemctl is-active homebridge.service)"
+    # if [ "${status}" = "active" ] 
+    # then
+        # echo "<INFO> Service homebridge läuft aktuell."
+        # # Service homebridge stoppen
+        # echo "<INFO> Service homebridge wird gestoppt."
+        # systemctl stop homebridge
+    # else
+        # echo "<INFO> Service homebridge läuft aktuell nicht."
+    # fi
+# else
+    # echo "<INFO> Service homebridge.service noch nicht installiert."
+    # exit 0
+# fi
 
-# Konfigurationsdatei sichern, wenn vorhanden
-if [ ! -f "$5/config/plugins/$3/config.json" ]
-then
-    echo "<INFO> Keine Konfigurationsdatei zum sichern vorhanden."
-    exit 0
-else
-    echo "<INFO> Sichere Konfigurationsdateien config.json."
-    cp -ar $5/config/plugins/$3/ /tmp/
-fi
+# # Konfigurationsdatei sichern, wenn vorhanden
+# if [ ! -f "$5/config/plugins/$3/config.json" ]
+# then
+    # echo "<INFO> Keine Konfigurationsdatei zum sichern vorhanden."
+    # exit 0
+# else
+    # echo "<INFO> Sichere Konfigurationsdateien config.json."
+    # cp -ar $5/config/plugins/$3/ /tmp/
+# fi
 
 # Install latest version of npm
-npm install -g npm@latest
-
-# Clear NPM's cache
-npm cache clean -f
-
-# Install n
-npm install -g n
-
-# Clear NPM's cache
-npm cache clean -f
-
-# Install stable Node.js version
-n stable
+# hb-service update-node
