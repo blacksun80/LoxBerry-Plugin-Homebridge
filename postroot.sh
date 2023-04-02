@@ -63,8 +63,4 @@ npm install -g --unsafe-perm homebridge homebridge-config-ui-x
 echo "<INFO> Dienst für homebridge einrichten und homebridge starten"
 hb-service -U $5/config/plugins/homebridge --user loxberry --port 8082 install
 
-# Install latest version of npm
-echo "<INFO> Node aktualisieren..."
-hb-service update-node
-
 exit 0
