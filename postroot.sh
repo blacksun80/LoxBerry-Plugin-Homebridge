@@ -59,52 +59,10 @@ echo "<INFO> Plugin CONFIG folder is: $PCONFIG"
 echo "<INFO> Plugin SBIN folder is: $PSBIN"
 echo "<INFO> Plugin BIN folder is: $PBIN"
 
-# Homebridge installieren
-npm install -g --unsafe-perm homebridge
+# Homebridge / Homebridge Config UI installieren
+npm install -g --unsafe-perm homebridge homebridge-config-ui-x
 
-# Homebridge Config UI installieren
-npm install -g --unsafe-perm homebridge-config-ui-x
+# Homebridge starten und als Dienst einrichten
+hb-service -U /opt/loxberry/config/plugins/homebridge --user loxberry --port 8082 install
 
-echo "<INFO> Kopiere Datei homebridge.service."
-cp -r $5/bin/plugins/$3/homebridge.service /etc/systemd/system
-
-echo "<INFO> Kopiere Datei homebridge."
-cp -r $5/bin/plugins/$3/homebridge /etc/default
-
-echo "<INFO> Service homebridge erzeugen"
-systemctl enable homebridge
-systemctl daemon-reload
-
-if [ ! -f "/tmp/homebridge/config.json" ]
-then
-    echo "<INFO> Keine Konfigurationsdatei zum Wiederherstellen vorhanden"
-else
-    echo "<INFO> Konfigurationsdatei config.json wiederherstellen"
-    cp -ar /tmp/homebridge /$5/config/plugins/
-    rm -r /tmp/homebridge
-fi
-
-# Ist der Service homebridge installiert?
-status="$(systemctl status homebridge | grep homebridge)"
-if [ "${status}" ]
-then
-    echo "<INFO> Service homebridge wurde installiert"
-    
-    # Service homebridge starten
-    echo "<INFO> Starte Service Homebridge..."
-    systemctl start homebridge
-    
-    # Läuft der Service homebridge aktuell?
-    status="$(systemctl is-active homebridge.service)"
-    if [ "${status}" = "active" ] 
-    then
-        echo "<INFO> Service homebridge wurde erfolgreich gestartet"
-        exit 0
-    else
-        echo "<ERROR> Service homebridge konnte nicht gestartet"
-        exit 1
-    fi
-else
-    echo "<ERROR> Service homebridge konnte nicht installiert werden"
-    exit 1
-fi
+exit 0
