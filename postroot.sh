@@ -56,9 +56,15 @@ PBIN=$LBPBIN/$PDIR
 echo "<INFO> Installation as root user started."
 
 # Homebridge / Homebridge Config UI installieren
+echo "<INFO> homebridge und homebedrige-config-ui-x wird installiert."
 npm install -g --unsafe-perm homebridge homebridge-config-ui-x
 
 # Homebridge starten und als Dienst einrichten
+echo "<INFO> Dienst für homebridge einrichten und homebridge starten"
 hb-service -U $ARGV5/config/plugins/homebridge --user loxberry --port 8082 install
+
+# Install latest version of npm
+echo "<INFO> Node aktualisieren..."
+hb-service update-node
 
 exit 0
