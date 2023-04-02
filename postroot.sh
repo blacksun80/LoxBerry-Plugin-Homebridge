@@ -1,16 +1,16 @@
-#!/bin/bash
+#!/bin/sh
 
-# Bashscript which is executed by bash *AFTER* complete installation is done
-# (*AFTER* postinstall but *BEFORE* postupdate). Use with caution and remember,
-# that all systems may be different!
+# Bash script which is executed in case of an update (if this plugin is already
+# installed on the system). This script is executed as very first step (*BEFORE*
+# preinstall.sh) and can be used e.g. to save existing configfiles to /tmp 
+# during installation. Use with caution and remember, that all systems may be
+# different!
 #
 # Exit code must be 0 if executed successfull. 
 # Exit code 1 gives a warning but continues installation.
 # Exit code 2 cancels installation.
 #
-# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-# Will be executed as user "root".
-# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+# Will be executed as user "loxberry".
 #
 # You can use all vars from /etc/environment in this script.
 #
@@ -56,13 +56,30 @@ echo "<INFO> Plugin Template folder is: $PTEMPL"
 echo "<INFO> Plugin Data folder is: $PDATA"
 echo "<INFO> Plugin Log folder (on RAMDISK!) is: $PLOG"
 echo "<INFO> Plugin CONFIG folder is: $PCONFIG"
-echo "<INFO> Plugin SBIN folder is: $PSBIN"
-echo "<INFO> Plugin BIN folder is: $PBIN"
+
+# To use important variables from command line use the following code:
+ARGV0=$0 # Zero argument is shell command
+#echo "<INFO> Command is: $ARGV0"
+
+ARGV1=$1 # First argument is temp folder during install
+#echo "<INFO> Temporary folder is: $ARGV1"
+
+ARGV2=$2 # Second argument is Plugin-Name for scipts etc.
+#echo "<INFO> (Short) Name is: $ARGV2"
+
+ARGV3=$3 # Third argument is Plugin installation folder
+#echo "<INFO> Installation folder is: $ARGV3"
+
+ARGV4=$4 # Forth argument is Plugin version
+#echo "<INFO> Installation folder is: $ARGV4"
+
+ARGV5=$5 # Fifth argument is Base folder of LoxBerry
+#echo "<INFO> Installation folder is: $ARGV5"
 
 # Homebridge / Homebridge Config UI installieren
 npm install -g --unsafe-perm homebridge homebridge-config-ui-x
 
 # Homebridge starten und als Dienst einrichten
-hb-service -U /opt/loxberry/config/plugins/homebridge --user loxberry --port 8082 install
+hb-service -U $ARGV5/config/plugins/homebridge --user loxberry --port 8082 install
 
 exit 0
