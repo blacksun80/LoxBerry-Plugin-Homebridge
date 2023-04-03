@@ -57,7 +57,10 @@ echo "<INFO> Plugin CONFIG folder is: $PCONFIG"
 echo "<INFO> Plugin SBIN folder is: $PSBIN"
 echo "<INFO> Plugin BIN folder is: $PBIN"
 
-echo "<INFO> Stoppe Service und Deinstallieren der Homebridge"
-hb-service stop
+echo "<INFO> Deinstallieren der Homebridge"
 hb-service uninstall
+
+# Homebridge Plugins deinstallieren
+npm uninstall -g --unsafe-perm homebridge-config-ui-x
+npm uninstall -g --unsafe-perm homebridge-loxone-connect
 exit 0
