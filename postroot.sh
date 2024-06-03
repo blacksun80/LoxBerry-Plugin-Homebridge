@@ -55,27 +55,16 @@ PBIN=$LBPBIN/$PDIR
   
 echo "<INFO> Installation as root user started."
 
-# Add the Homebridge Repository GPG key
-curl -sSfL https://repo.homebridge.io/KEY.gpg | sudo gpg --dearmor | sudo tee /usr/share/keyrings/homebridge.gpg  > /dev/null
+npm cache clean -f
+npm install -g n
+n stable
 
-# Add the Homebridge Repository to the system sources
-echo "deb [signed-by=/usr/share/keyrings/homebridge.gpg] https://repo.homebridge.io stable main" | sudo tee /etc/apt/sources.list.d/homebridge.list > /dev/null
-
-# Update repositories
-apt-get update
-
-# Install Homebridge
-apt-get install homebridge
-
-# Homebridge stoppen und Dienst entfernen
-hb-service uninstall
+# Homebridge / Homebridge Config UI installieren
+echo "<INFO> homebridge und homebedrige-config-ui-x wird installiert."
+npm install -g --unsafe-perm homebridge homebridge-config-ui-x
 
 # Homebridge starten und als Dienst einrichten
 echo "<INFO> Dienst für homebridge einrichten und homebridge starten"
-#hb-service -U $5/config/plugins/homebridge --user loxberry --port 8082 install
-hb-service --user loxberry --port 8082 install
+hb-service -U $5/config/plugins/homebridge --user loxberry --port 8082 install
 
-# Homebridge neustarten, da der Port 8082 erst nach einem Restart verwendet wird
-echo "<INFO> Dienst homebridge neustarten"
-hb-service restart
 exit 0
