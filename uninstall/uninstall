@@ -59,9 +59,8 @@ echo "<INFO> Plugin BIN folder is: $PBIN"
 
 echo "<INFO> Deinstallieren der Homebridge"
 echo "******************************************************TEST***********************************************" > /tmp/uninstall.test
-hb-service uninstall
-
-# Homebridge Plugins deinstallieren
-npm uninstall -g --unsafe-perm homebridge-config-ui-x
-npm uninstall -g --unsafe-perm homebridge-loxone-connect
+hb-service stop
+apt-get remove homebridge
+rm -rf /etc/apt/sources.list.d/homebridge.list
+apt-get purge homebridge
 exit 0

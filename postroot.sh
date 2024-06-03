@@ -67,12 +67,13 @@ apt-get update
 # Install Homebridge
 apt-get install homebridge
 
-# Homebridge stoppen
-hb-service stop 
+# Homebridge stoppen und Dienst entfernen
+hb-service uninstall
 
 # Homebridge starten und als Dienst einrichten
 echo "<INFO> Dienst für homebridge einrichten und homebridge starten"
-hb-service -U $5/config/plugins/homebridge --user loxberry --port 8082 install
+#hb-service -U $5/config/plugins/homebridge --user loxberry --port 8082 install
+hb-service --user loxberry --port 8082 install
 
 # Homebridge neustarten, da der Port 8082 erst nach einem Restart verwendet wird
 echo "<INFO> Dienst homebridge neustarten"
