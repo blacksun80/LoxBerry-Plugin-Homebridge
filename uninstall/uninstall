@@ -63,5 +63,5 @@ hb-service uninstall
 
 # Homebridge Plugins deinstallieren
 npm uninstall -g --unsafe-perm homebridge-config-ui-x
-npm uninstall -g --unsafe-perm homebridge-loxone-connect
+npm uninstall -g --unsafe-perm homebridge
 exit 0
