@@ -55,9 +55,17 @@ PBIN=$LBPBIN/$PDIR
   
 echo "<INFO> Installation as root user started."
 
-# Homebridge / Homebridge Config UI installieren
-echo "<INFO> homebridge und homebedrige-config-ui-x wird installiert."
-npm install -g --unsafe-perm homebridge homebridge-config-ui-x
+# Add the Homebridge Repository GPG key
+curl -sSfL https://repo.homebridge.io/KEY.gpg | sudo gpg --dearmor | sudo tee /usr/share/keyrings/homebridge.gpg  > /dev/null
+
+# Add the Homebridge Repository to the system sources
+echo "deb [signed-by=/usr/share/keyrings/homebridge.gpg] https://repo.homebridge.io stable main" | sudo tee /etc/apt/sources.list.d/homebridge.list > /dev/null
+
+# Update repositories
+apt-get update
+
+# Install Homebridge
+apt-get install homebridge
 
 # Homebridge starten und als Dienst einrichten
 echo "<INFO> Dienst für homebridge einrichten und homebridge starten"
