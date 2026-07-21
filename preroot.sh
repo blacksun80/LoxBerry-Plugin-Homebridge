@@ -126,12 +126,16 @@ for d in /usr/local/lib/node_modules/homebridge /usr/local/lib/node_modules/home
     if [ -d "$d" ]; then
         echo "<INFO> Entferne alte systemweite Installation $d ..."
         rm -rf "$d"
+    else
+        echo "<INFO> $d nicht vorhanden - nichts zu tun."
     fi
 done
 for b in /usr/local/bin/homebridge /usr/local/bin/hb-service; do
     if [ -e "$b" ]; then
         echo "<INFO> Entferne alten Symlink $b ..."
         rm -f "$b"
+    else
+        echo "<INFO> $b nicht vorhanden - nichts zu tun."
     fi
 done
 
