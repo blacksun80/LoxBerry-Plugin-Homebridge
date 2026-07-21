@@ -91,15 +91,29 @@ if [ -f "$INSTALLED_HB_PKG" ]; then
     INSTALLED_HB_VERSION=$(grep -oP '"version"\s*:\s*"\K[^"]+' "$INSTALLED_HB_PKG" | head -1)
 fi
 
-REQUIRED_RANGE=$(printf '%s' "$HB_UI_MANIFEST" | grep -oP '"engines"\s*:\s*\{[^}]*?"node"\s*:\s*"\K[^"]+' | head -1)
-if [ -z "$REQUIRED_RANGE" ]; then
-    echo "Konnte engines.node nicht abfragen - Fallback auf Node 22."
+# engines.node MUSS von BEIDEN Paketen passen - homebridge und config-ui-x
+# koennen (und werden irgendwann) unterschiedliche Ranges deklarieren, z.B.
+# wenn eines von beiden eine alte Major-Version fallen laesst. Deshalb aus
+# beiden Manifesten getrennt lesen und nur die Schnittmenge der explizit
+# unterstuetzten Majors verwenden - nie nur einem der beiden Pakete vertrauen.
+REQUIRED_RANGE_UI=$(printf '%s' "$HB_UI_MANIFEST" | grep -oP '"engines"\s*:\s*\{[^}]*?"node"\s*:\s*"\K[^"]+' | head -1)
+REQUIRED_RANGE_HB=$(printf '%s' "$HB_MANIFEST" | grep -oP '"engines"\s*:\s*\{[^}]*?"node"\s*:\s*"\K[^"]+' | head -1)
+
+if [ -z "$REQUIRED_RANGE_UI" ] || [ -z "$REQUIRED_RANGE_HB" ]; then
+    echo "Konnte engines.node nicht von beiden Paketen abfragen - Fallback auf Node 22."
     TARGET_MAJOR=22
 else
-    echo "engines.node von homebridge-config-ui-x: $REQUIRED_RANGE"
-    TARGET_MAJOR=$(echo "$REQUIRED_RANGE" | grep -oP '\^\K[0-9]+' | sort -n | head -1)
+    echo "engines.node von homebridge-config-ui-x: $REQUIRED_RANGE_UI"
+    echo "engines.node von homebridge: $REQUIRED_RANGE_HB"
+    MAJORS_UI=$(echo "$REQUIRED_RANGE_UI" | grep -oP '\^\K[0-9]+' | sort -nu)
+    MAJORS_HB=$(echo "$REQUIRED_RANGE_HB" | grep -oP '\^\K[0-9]+' | sort -nu)
+    # Schnittmenge (grep -Fxf statt "comm", damit die Sortierreihenfolge der
+    # Eingaben keine Rolle spielt), davon die HOECHSTE gemeinsame Major-Version -
+    # laengste Restlaufzeit bis zum Node-EOL unter den Versionen, die beide
+    # Pakete tatsaechlich freigeben.
+    TARGET_MAJOR=$(echo "$MAJORS_UI" | grep -Fxf <(echo "$MAJORS_HB") | sort -n | tail -1)
     if [ -z "$TARGET_MAJOR" ]; then
-        echo "Konnte keine Major-Version herauslesen - Fallback auf Node 22."
+        echo "Keine gemeinsame Major-Version zwischen homebridge und config-ui-x gefunden - Fallback auf Node 22."
         TARGET_MAJOR=22
     fi
 fi
