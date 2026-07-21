@@ -286,6 +286,31 @@ fi
 echo "Registriere Dienst (Storage: $HB_STORAGE_DIR, Port 8082, User loxberry) ..."
 "$HB_SERVICE" -U "$HB_STORAGE_DIR" --user loxberry --port 8082 install
 
+# hb-service generiert die systemd-Unit OHNE eigenes Environment=PATH=. Der darin
+# verwendete "#!/usr/bin/env node"-Shebang loest "node" deshalb zur Laufzeit ueber
+# systemds STANDARD-PATH auf - und findet dort ein evtl. vorhandenes System-Node
+# (z.B. /usr/local/bin/node auf LoxBerry 4, oft eine viel neuere Version) VOR
+# unserem isolierten Node. Folge: Die Config-UI laeuft mit falscher Node-Version,
+# native Module wie node-pty (ABI-gebunden, beim npm install fuer UNSER Node
+# gebaut) lassen sich nicht laden und die Weboberflaeche stuerzt in einer
+# Restart-Schleife ab - waehrend die reine Homebridge-Bridge oft trotzdem
+# weiterlaeuft, was im Log wie ein Erfolg aussieht. Deshalb unser isoliertes
+# Node per Environment=PATH in der Unit erzwingen. Das muss NACH JEDEM Aufruf
+# von "hb-service install" passieren, weil hb-service die Unit jedesmal neu
+# schreibt (auch bei jedem Plugin-Update, s.o.) und ein reines PATH aus der
+# vorherigen Installation dabei verloren ginge.
+if [ -f "$SERVICE_UNIT" ]; then
+    NODE_UNIT_PATH="${HB_NODE_DIR}/bin:${HB_NPM_GLOBAL}/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+    sed -i '/^Environment=PATH=/d' "$SERVICE_UNIT"
+    sed -i "/^\[Service\]/a Environment=PATH=${NODE_UNIT_PATH}" "$SERVICE_UNIT"
+    systemctl daemon-reload
+    systemctl restart homebridge.service
+    echo "Environment=PATH in $SERVICE_UNIT gesetzt (isoliertes Node zuerst) und Dienst neu gestartet."
+else
+    echo "FEHLER: $SERVICE_UNIT nach 'hb-service install' nicht gefunden - PATH-Fix konnte nicht angewendet werden."
+    exit 1
+fi
+
 echo ""
 echo "============================================================"
 echo "Zusammenfassung"
