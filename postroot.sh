@@ -216,6 +216,20 @@ export PATH="$HB_NODE_DIR/bin:$PATH"
 # kompletten Neu-Build (spart auf dem Pi mehrere Minuten). Bei geaendertem Node
 # MUSS neu gebaut werden (native Module haengen an der Node-ABI). Konnten die
 # Versionen nicht von npm abgefragt werden, wird sicherheitshalber gebaut.
+# Node-Version geaendert (z.B. 22 -> 24): npm-global MUSS komplett neu
+# aufgebaut werden. Ein einfaches "npm install -g homebridge ..." wuerde
+# NICHTS tun, falls Homebridge/config-ui-x schon in der gewuenschten Version
+# vorliegen (npm sieht die Anforderung als erfuellt an) - native Module wie
+# node-pty (ABI-gebunden an die Node-Version) blieben dann als Binary fuer die
+# ALTE Node-Version liegen und fuehren zum selben "Cannot find module
+# .../pty.node"-Absturz, den wir schon einmal hatten (damals durch den
+# fehlenden PATH-Fix ausgeloest, hier durch die Node-Version selbst).
+if [ "$NODE_CHANGED" -eq 1 ]; then
+    echo "Node-Version hat sich geaendert - npm-global wird komplett neu aufgebaut (native Module sind ABI-gebunden)."
+    rm -rf "${HB_NPM_GLOBAL:?}"
+    mkdir -p "$HB_NPM_GLOBAL"
+fi
+
 if [ "$NODE_CHANGED" -eq 0 ] \
    && [ -x "$HB_NPM_GLOBAL/bin/homebridge" ] && [ -x "$HB_NPM_GLOBAL/bin/hb-service" ] \
    && [ -n "$LATEST_HB_VERSION" ] && [ "$INSTALLED_HB_VERSION" = "$LATEST_HB_VERSION" ] \
