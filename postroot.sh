@@ -88,59 +88,29 @@ npm cache clean -f
 # Installation zum jetzigen Zeitpunkt ohnehin bekommen wuerde (siehe oben).
 #
 # Strategie:
-#   1. Node.js ggf. ueber die vorhandenen apt-Quellen aktualisieren (oben
-#      bereits erledigt).
-#   2. Neueste, ueber "*" abgefragte Versionen von homebridge und
-#      homebridge-config-ui-x pruefen: welche davon ist mit der (ggf. gerade
-#      aktualisierten) Node.js-Version kompatibel (engines.node)? Es wird
-#      jeweils die NEUESTE kompatible Version ermittelt (das kann bereits
-#      "latest" sein).
+#   1. Node.js NUR aktualisieren, wenn ueber die vorhandenen apt-Quellen ein
+#      neuerer Candidate existiert UND dafuer schon eine kompatible Version
+#      von homebridge UND homebridge-config-ui-x veroeffentlicht ist (Probe
+#      VOR dem Update, siehe unten). Sonst bleibt die installierte
+#      Node-Version unangetastet.
+#   2. Mit der (ggf. aktualisierten oder unveraenderten) Node.js-Version die
+#      jeweils NEUESTE kompatible Version von homebridge und
+#      homebridge-config-ui-x ermitteln (kann bereits "latest" sein).
 #   3. Diese ermittelten Versionen werden fixiert installiert
 #      (z.B. homebridge-config-ui-x@4.5.0), NICHT einfach "latest".
 #   4. Wird fuer eines der beiden Pakete GAR KEINE kompatible Version
 #      gefunden, wird die Installation sauber abgebrochen (exit 2).
 # --------------------------------------------------------------------------
 
-CURRENT_NODE_FULL=$(node -v 2>/dev/null | sed 's/^v//')
-if [ -z "$CURRENT_NODE_FULL" ]; then
-    echo "<ERROR> Konnte die installierte Node.js-Version nicht ermitteln (ist Node.js ueberhaupt installiert?)."
-    exit 2
-fi
-CURRENT_NPM_FULL=$(npm -v 2>/dev/null)
-echo "<INFO> Installierte Version: Node.js v$CURRENT_NODE_FULL / npm v$CURRENT_NPM_FULL."
-
-# --------------------------------------------------------------------------
-# Ueber die bereits konfigurierten apt-Quellen (Debian Trixie selbst - KEINE
-# NodeSource-Fremdquelle wird hinzugefuegt) pruefen, ob eine neuere
-# Node.js-Paketversion als Candidate verfuegbar ist, und diese ggf.
-# installieren. Das ist kein "fremdes" Erzwingen einer Version: Es ist genau
-# die Version, die eine frische LoxBerry-Installation zum jetzigen Zeitpunkt
-# ohnehin bekommen wuerde. npm wird dabei automatisch als Teil des
-# nodejs-Pakets mitaktualisiert.
-# --------------------------------------------------------------------------
-echo "<INFO> Pruefe ueber die bereits konfigurierten apt-Quellen, ob eine neuere Node.js-Paketversion verfuegbar ist..."
-apt-get update -qq
-NODEJS_INSTALLED=$(apt-cache policy nodejs 2>/dev/null | awk '/Installed:/ {print $2}')
-NODEJS_CANDIDATE=$(apt-cache policy nodejs 2>/dev/null | awk '/Candidate:/ {print $2}')
-if [ -n "$NODEJS_CANDIDATE" ] && [ "$NODEJS_CANDIDATE" != "(none)" ] && [ "$NODEJS_CANDIDATE" != "$NODEJS_INSTALLED" ]; then
-    echo "<INFO> Neuere Node.js-Paketversion aus den konfigurierten apt-Quellen verfuegbar: $NODEJS_CANDIDATE (installiert: ${NODEJS_INSTALLED:-unbekannt}). Wird installiert..."
-    apt-get install -y nodejs
-    if [ $? -ne 0 ]; then
-        echo "<WARNING> Aktualisierung von nodejs ueber apt-get fehlgeschlagen. Es wird mit der bisherigen Version v$CURRENT_NODE_FULL weitergemacht."
-    else
-        CURRENT_NODE_FULL=$(node -v 2>/dev/null | sed 's/^v//')
-        CURRENT_NPM_FULL=$(npm -v 2>/dev/null)
-        echo "<OK> Node.js aktualisiert auf v$CURRENT_NODE_FULL (npm v$CURRENT_NPM_FULL)."
-    fi
-else
-    echo "<OK> Ueber die konfigurierten apt-Quellen ist keine neuere Node.js-Paketversion verfuegbar - installierte Version ist bereits aktuell."
-fi
-
 # Sucht unter allen veroeffentlichten Versionen von Paket $1 die NEUESTE,
-# deren engines.node-Range mit $CURRENT_NODE_FULL kompatibel ist. Gibt die
-# Versionsnummer auf stdout aus, oder nichts, wenn keine passt.
+# deren engines.node-Range mit der als $2 uebergebenen Node-Version
+# kompatibel ist. Gibt die Versionsnummer auf stdout aus, oder nichts, wenn
+# keine passt. Wird sowohl fuer die tatsaechlich installierte als auch
+# (probeweise, VOR einem moeglichen Update) fuer die apt-Candidate-Version
+# aufgerufen.
 find_compatible_version() {
     local PKG="$1"
+    local NODE_VERSION="$2"
     node -e '
         const { execSync } = require("child_process");
         const pkg = process.argv[1];
@@ -215,14 +185,60 @@ find_compatible_version() {
             }
         }
         process.exit(0);
-    ' "$PKG" "$CURRENT_NODE_FULL"
+    ' "$PKG" "$NODE_VERSION"
 }
 
+CURRENT_NODE_FULL=$(node -v 2>/dev/null | sed 's/^v//')
+if [ -z "$CURRENT_NODE_FULL" ]; then
+    echo "<ERROR> Konnte die installierte Node.js-Version nicht ermitteln (ist Node.js ueberhaupt installiert?)."
+    exit 2
+fi
+CURRENT_NPM_FULL=$(npm -v 2>/dev/null)
+echo "<INFO> Installierte Version: Node.js v$CURRENT_NODE_FULL / npm v$CURRENT_NPM_FULL."
+
+# --------------------------------------------------------------------------
+# Ueber die bereits konfigurierten apt-Quellen (Debian Trixie selbst - KEINE
+# NodeSource-Fremdquelle wird hinzugefuegt) pruefen, ob eine neuere
+# Node.js-Paketversion als Candidate verfuegbar ist. Bevor diese tatsaechlich
+# installiert wird, wird ZUERST probeweise geprueft, ob es fuer diese
+# Candidate-Version ueberhaupt eine kompatible Version von homebridge UND
+# homebridge-config-ui-x gibt. Nur wenn beides zutrifft, wird aktualisiert -
+# sonst bleibt es bei der bisherigen, funktionierenden Node-Version.
+# --------------------------------------------------------------------------
+echo "<INFO> Pruefe ueber die bereits konfigurierten apt-Quellen, ob eine neuere Node.js-Paketversion verfuegbar ist..."
+apt-get update -qq
+NODEJS_INSTALLED_RAW=$(apt-cache policy nodejs 2>/dev/null | awk '/Installed:/ {print $2}')
+NODEJS_CANDIDATE_RAW=$(apt-cache policy nodejs 2>/dev/null | awk '/Candidate:/ {print $2}')
+NODEJS_CANDIDATE_FULL=$(echo "$NODEJS_CANDIDATE_RAW" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+
+if [ -n "$NODEJS_CANDIDATE_FULL" ] && [ "$NODEJS_CANDIDATE_RAW" != "(none)" ] && [ "$NODEJS_CANDIDATE_RAW" != "$NODEJS_INSTALLED_RAW" ]; then
+    echo "<INFO> Neuere Node.js-Paketversion aus den konfigurierten apt-Quellen verfuegbar: v$NODEJS_CANDIDATE_FULL (installiert: v$CURRENT_NODE_FULL)."
+    echo "<INFO> Pruefe probeweise, ob es dafuer bereits eine kompatible homebridge- und homebridge-config-ui-x-Version gibt..."
+    PROBE_UI_VERSION=$(find_compatible_version "homebridge-config-ui-x" "$NODEJS_CANDIDATE_FULL")
+    PROBE_HB_VERSION=$(find_compatible_version "homebridge" "$NODEJS_CANDIDATE_FULL")
+
+    if [ -n "$PROBE_UI_VERSION" ] && [ -n "$PROBE_HB_VERSION" ]; then
+        echo "<INFO> Kompatible Versionen gefunden (homebridge@$PROBE_HB_VERSION, homebridge-config-ui-x@$PROBE_UI_VERSION) - Node.js wird aktualisiert."
+        apt-get install -y nodejs
+        if [ $? -ne 0 ]; then
+            echo "<WARNING> Aktualisierung von nodejs ueber apt-get fehlgeschlagen. Es wird mit der bisherigen Version v$CURRENT_NODE_FULL weitergemacht."
+        else
+            CURRENT_NODE_FULL=$(node -v 2>/dev/null | sed 's/^v//')
+            CURRENT_NPM_FULL=$(npm -v 2>/dev/null)
+            echo "<OK> Node.js aktualisiert auf v$CURRENT_NODE_FULL (npm v$CURRENT_NPM_FULL)."
+        fi
+    else
+        echo "<INFO> Fuer Node.js v$NODEJS_CANDIDATE_FULL gibt es noch keine kompatible homebridge- bzw. homebridge-config-ui-x-Version - Update wird uebersprungen, es bleibt bei Node.js v$CURRENT_NODE_FULL."
+    fi
+else
+    echo "<OK> Ueber die konfigurierten apt-Quellen ist keine neuere Node.js-Paketversion verfuegbar - installierte Version ist bereits aktuell."
+fi
+
 echo "<INFO> Suche neueste zu Node.js v$CURRENT_NODE_FULL kompatible Version von homebridge-config-ui-x..."
-UI_VERSION=$(find_compatible_version "homebridge-config-ui-x")
+UI_VERSION=$(find_compatible_version "homebridge-config-ui-x" "$CURRENT_NODE_FULL")
 
 echo "<INFO> Suche neueste zu Node.js v$CURRENT_NODE_FULL kompatible Version von homebridge..."
-HB_VERSION=$(find_compatible_version "homebridge")
+HB_VERSION=$(find_compatible_version "homebridge" "$CURRENT_NODE_FULL")
 
 if [ -z "$UI_VERSION" ] || [ -z "$HB_VERSION" ]; then
     echo "<ERROR> Es wurde keine mit der installierten Node.js-Version v$CURRENT_NODE_FULL kompatible Version gefunden:"
