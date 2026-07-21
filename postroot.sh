@@ -55,6 +55,34 @@ PBIN=$LBPBIN/$PDIR
 echo "<INFO> Installation as root user started."
 
 # --------------------------------------------------------------------------
+# Sicherheitsnetz: Vor JEDER Aenderung (Node-Update, npm install, hb-service
+# install) wird - falls vorhanden - die bestehende Homebridge-config.json
+# zeitgestempelt gesichert. Es wird keine einzelne .bak-Datei ueberschrieben
+# (die waere beim naechsten Lauf selbst wieder weg), sondern in einem eigenen
+# Unterordner abgelegt, mit Rotation auf die letzten 5 Backups - so bleibt
+# auch nach mehreren Updates in Folge noch eine Historie zum Zurueckgreifen.
+# Das aendert nichts an der eigentlichen, laufenden Konfiguration.
+# --------------------------------------------------------------------------
+HB_STORAGE_DIR="$5/config/plugins/homebridge"
+HB_CONFIG_FILE="$HB_STORAGE_DIR/config.json"
+HB_BACKUP_DIR="$HB_STORAGE_DIR/config-backups"
+
+if [ -f "$HB_CONFIG_FILE" ]; then
+    mkdir -p "$HB_BACKUP_DIR"
+    BACKUP_TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+    cp "$HB_CONFIG_FILE" "$HB_BACKUP_DIR/config_${BACKUP_TIMESTAMP}.json"
+    if [ $? -eq 0 ]; then
+        echo "<OK> Bestehende config.json gesichert nach: $HB_BACKUP_DIR/config_${BACKUP_TIMESTAMP}.json"
+        # Rotation: nur die 5 neuesten Backups behalten
+        ls -1t "$HB_BACKUP_DIR"/config_*.json 2>/dev/null | tail -n +6 | xargs -r rm --
+    else
+        echo "<WARNING> Backup der bestehenden config.json ist fehlgeschlagen - Installation laeuft trotzdem weiter."
+    fi
+else
+    echo "<INFO> Noch keine bestehende config.json gefunden (vermutlich Erstinstallation) - kein Backup noetig."
+fi
+
+# --------------------------------------------------------------------------
 # Build-Tools sicherstellen (g++/make/python3). Das betrifft NUR den
 # Compiler, nicht Node.js oder npm selbst - unabhaengig von der installierten
 # Node-Version kann es sein, dass fuer ein natives npm-Modul auf einer
