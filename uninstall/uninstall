@@ -47,10 +47,6 @@ if [ -f "$SERVICE_UNIT" ]; then
     systemctl daemon-reload 2>/dev/null || true
 fi
 
-# Cleanup-Marker der Fremd-Node-Bereinigung entfernen, damit eine spaetere
-# Neuinstallation die Pruefung wieder von vorne durchfuehrt.
-rm -f "$LBHOMEDIR/data/system/homebridge_node_cleanup_done"
-
 # Config-Backups entfernen - sonst wuerde eine spaetere Neuinstallation ueber
 # postroot.sh eine alte Konfiguration wiederherstellen.
 rm -rf "$LBHOMEDIR/data/system/tmp/homebridge_config_backup"

@@ -4,11 +4,13 @@
 # Laeuft als User "root", ganz am Ende der Installation/des Updates.
 #
 # Schritt 1: Homebridge-Config aus dem preroot.sh-Backup wiederherstellen.
-# Schritt 2: System-Node/npm pruefen, Fremdinstallationen einmalig entfernen.
-# Schritt 3: Benoetigte Node-Version fuer Homebridge ermitteln.
-# Schritt 4: Isoliertes Node.js fuer Homebridge einrichten (persistent).
-# Schritt 5: Homebridge + Config UI X installieren (isoliert).
-# Schritt 6: hb-service einrichten/neu starten.
+# Schritt 2: Homebridge-/Node-Version ermitteln.
+# Schritt 3: Isoliertes Node.js fuer Homebridge einrichten (persistent).
+# Schritt 4: Homebridge + Config UI X installieren (isoliert).
+# Schritt 5: hb-service einrichten/neu starten.
+#
+# Hinweis: Das System-Node des LoxBerry wird bewusst NICHT angefasst - Homebridge
+# laeuft komplett im isolierten Node unter der persistenten Runtime.
 #
 # Argumente: command <TEMPFOLDER> <NAME> <FOLDER> <VERSION> <BASEFOLDER> <TEMPPATH>
 COMMAND=$0
@@ -57,75 +59,7 @@ fi
 
 echo ""
 echo "============================================================"
-echo "Schritt 2: System-Node/npm pruefen, Fremdinstallationen entfernen"
-echo "============================================================"
-
-NODE_CLEANUP_MARKER="$LBHOMEDIR/data/system/homebridge_node_cleanup_done"
-
-if [ -f "$NODE_CLEANUP_MARKER" ]; then
-    echo "Fremd-Node-Bereinigung wurde bereits einmal durchgefuehrt (am $(cat "$NODE_CLEANUP_MARKER" 2>/dev/null))."
-    echo "Wird uebersprungen. Zum erneuten Ausfuehren: Datei $NODE_CLEANUP_MARKER loeschen."
-    echo "Aktuelles System-Node: $(node -v 2>/dev/null || echo 'kein System-Node gefunden')"
-else
-
-NODESOURCE_FILE="/etc/apt/sources.list.d/nodesource.list"
-FOREIGN_NODE=0
-
-if [ -f "$NODESOURCE_FILE" ]; then
-    echo "NodeSource-Fremdquelle gefunden ($NODESOURCE_FILE)."
-    FOREIGN_NODE=1
-fi
-
-for p in /usr/local/bin/node /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/n; do
-    if [ -e "$p" ]; then
-        echo "Fremdinstallation gefunden: $p"
-        FOREIGN_NODE=1
-    fi
-done
-
-if [ -d /usr/local/n ]; then
-    echo "Verzeichnis /usr/local/n gefunden."
-    FOREIGN_NODE=1
-fi
-
-CURRENT_NODE_PATH=$(command -v node 2>/dev/null || true)
-if [ -n "$CURRENT_NODE_PATH" ] && [[ "$CURRENT_NODE_PATH" != /usr/bin/* ]]; then
-    echo "Aktives 'node' im PATH liegt nicht unter /usr/bin ($CURRENT_NODE_PATH)."
-    FOREIGN_NODE=1
-fi
-
-if [ "$FOREIGN_NODE" -eq 1 ]; then
-    echo "-> Fremd-Node/npm erkannt. Wird entfernt und durch die apt-Version ersetzt."
-
-    rm -f "$NODESOURCE_FILE"
-    rm -f /etc/apt/keyrings/nodesource.gpg /usr/share/keyrings/nodesource.gpg 2>/dev/null || true
-
-    apt-get remove -y --purge nodejs npm libnode-dev 'libnode*' 2>/dev/null || true
-    apt-get autoremove -y 2>/dev/null || true
-
-    rm -rf /usr/local/n /usr/local/lib/node_modules
-    rm -f /usr/local/bin/node /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/n
-    hash -r
-
-    apt-get update -qq || echo "WARNUNG: apt-get update hatte Fehler - fahre trotzdem fort."
-    apt-get install -y nodejs
-    hash -r
-
-    echo "System-Node jetzt: $(node -v 2>/dev/null || echo 'FEHLER: node nicht gefunden')"
-else
-    echo "Kein Fremd-Node/npm gefunden."
-    echo "System-Node: $(node -v 2>/dev/null || echo 'kein System-Node installiert')"
-fi
-
-mkdir -p "$(dirname "$NODE_CLEANUP_MARKER")"
-date '+%Y-%m-%d %H:%M:%S' > "$NODE_CLEANUP_MARKER"
-echo "Vermerkt unter $NODE_CLEANUP_MARKER."
-
-fi
-
-echo ""
-echo "============================================================"
-echo "Schritt 3: Homebridge-Version & benoetigte Node-Version ermitteln"
+echo "Schritt 2: Homebridge-/Node-Version ermitteln"
 echo "============================================================"
 
 # Aktuelle Version + Node-Anforderung direkt aus der npm-Registry lesen
@@ -135,7 +69,7 @@ LATEST_HB_UI_VERSION=$(printf '%s' "$HB_UI_MANIFEST" | grep -oP '"version"\s*:\s
 INSTALLED_HB_UI_PKG="$HB_NPM_GLOBAL/lib/node_modules/homebridge-config-ui-x/package.json"
 INSTALLED_HB_UI_VERSION=""
 if [ -f "$INSTALLED_HB_UI_PKG" ]; then
-    INSTALLED_HB_UI_VERSION=$(node -e "try{console.log(require('$INSTALLED_HB_UI_PKG').version)}catch(e){}" 2>/dev/null || echo "")
+    INSTALLED_HB_UI_VERSION=$(grep -oP '"version"\s*:\s*"\K[^"]+' "$INSTALLED_HB_UI_PKG" | head -1)
 fi
 
 if [ -n "$LATEST_HB_UI_VERSION" ]; then
@@ -148,13 +82,13 @@ else
     echo "Konnte aktuelle homebridge-config-ui-x Version nicht von npm abfragen."
 fi
 
-# Auch die Homebridge-Version selbst ermitteln (fuer die Reuse-Entscheidung in Schritt 5).
+# Auch die Homebridge-Version selbst ermitteln (fuer die Reuse-Entscheidung in Schritt 4).
 HB_MANIFEST=$(curl -fsSL https://registry.npmjs.org/homebridge/latest 2>/dev/null || echo "")
 LATEST_HB_VERSION=$(printf '%s' "$HB_MANIFEST" | grep -oP '"version"\s*:\s*"\K[^"]+' | head -1)
 INSTALLED_HB_PKG="$HB_NPM_GLOBAL/lib/node_modules/homebridge/package.json"
 INSTALLED_HB_VERSION=""
 if [ -f "$INSTALLED_HB_PKG" ]; then
-    INSTALLED_HB_VERSION=$(node -e "try{console.log(require('$INSTALLED_HB_PKG').version)}catch(e){}" 2>/dev/null || echo "")
+    INSTALLED_HB_VERSION=$(grep -oP '"version"\s*:\s*"\K[^"]+' "$INSTALLED_HB_PKG" | head -1)
 fi
 
 REQUIRED_RANGE=$(printf '%s' "$HB_UI_MANIFEST" | grep -oP '"engines"\s*:\s*\{[^}]*?"node"\s*:\s*"\K[^"]+' | head -1)
@@ -173,7 +107,7 @@ echo "Gewaehlte Ziel-Major-Version fuer das isolierte Homebridge-Node: v${TARGET
 
 echo ""
 echo "============================================================"
-echo "Schritt 4: Isoliertes Node.js einrichten (persistent, wird wiederverwendet)"
+echo "Schritt 3: Isoliertes Node.js einrichten (persistent, wird wiederverwendet)"
 echo "============================================================"
 
 ARCH=$(uname -m)
@@ -232,7 +166,7 @@ echo "Verwende isoliertes Node: $($LOCAL_NODE -v) / npm: $($LOCAL_NPM -v)"
 
 echo ""
 echo "============================================================"
-echo "Schritt 5: Homebridge + Config UI X installieren (isoliert)"
+echo "Schritt 4: Homebridge + Config UI X installieren (isoliert)"
 echo "============================================================"
 
 export PATH="$HB_NODE_DIR/bin:$PATH"
@@ -285,7 +219,7 @@ fi
 
 echo ""
 echo "============================================================"
-echo "Schritt 6: hb-service einrichten (Storage: $HB_STORAGE_DIR)"
+echo "Schritt 5: hb-service einrichten (Storage: $HB_STORAGE_DIR)"
 echo "============================================================"
 
 export PATH="$HB_NODE_DIR/bin:$HB_NPM_GLOBAL/bin:$PATH"
@@ -299,13 +233,12 @@ fi
 SERVICE_UNIT="/etc/systemd/system/homebridge.service"
 
 # Ein bereits vorhandenes homebridge.service-Unit stammt entweder vom alten
-# Plugin (dessen ExecStart zeigt auf das inzwischen in Schritt 2 entfernte
-# System-Node -> Unit waere kaputt) oder von einem frueheren Lauf dieses Skripts.
-# In beiden Faellen: erst sauber deinstallieren, dann mit dem NEUEN isolierten
-# Node frisch registrieren. Nur so zeigt die Unit-ExecStart auf ein existierendes
-# node-Binary. Die Pairings/Config liegen im Storage-Verzeichnis
-# ($HB_STORAGE_DIR) und werden von "hb-service uninstall" NICHT angetastet -
-# ausserdem haben wir sie in preroot.sh gesichert.
+# Plugin (dessen ExecStart zeigt auf ein System-Node, nicht auf unsere isolierte
+# Runtime) oder von einem frueheren Lauf dieses Skripts. In beiden Faellen: erst
+# sauber deinstallieren, dann mit dem isolierten Node frisch registrieren, damit
+# die Unit-ExecStart auf unser Node-Binary zeigt. Die Pairings/Config liegen im
+# Storage-Verzeichnis ($HB_STORAGE_DIR) und werden von "hb-service uninstall"
+# NICHT angetastet - ausserdem haben wir sie in preroot.sh gesichert.
 if systemctl list-unit-files 2>/dev/null | grep -q "^homebridge\.service"; then
     OLD_STORAGE=""
     [ -f "$SERVICE_UNIT" ] && OLD_STORAGE=$(grep -oP '(?<=-U )\S+' "$SERVICE_UNIT" | head -1)
