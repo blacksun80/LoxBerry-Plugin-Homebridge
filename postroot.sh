@@ -76,19 +76,30 @@ if [ -n "$LATEST_HB_UI_VERSION" ]; then
     if [ -n "$INSTALLED_HB_UI_VERSION" ] && [ "$INSTALLED_HB_UI_VERSION" = "$LATEST_HB_UI_VERSION" ]; then
         echo "homebridge-config-ui-x ist bereits aktuell (v$INSTALLED_HB_UI_VERSION)."
     else
-        echo "Update verfuegbar: installiert=${INSTALLED_HB_UI_VERSION:-keine}, aktuell auf npm=$LATEST_HB_UI_VERSION"
+        echo "homebridge-config-ui-x: installiert=${INSTALLED_HB_UI_VERSION:-keine}, aktuell auf npm-Registry: $LATEST_HB_UI_VERSION"
     fi
 else
-    echo "Konnte aktuelle homebridge-config-ui-x Version nicht von npm abfragen."
+    echo "Konnte aktuelle homebridge-config-ui-x Version nicht von der npm-Registry abfragen."
 fi
 
-# Auch die Homebridge-Version selbst ermitteln (fuer die Reuse-Entscheidung in Schritt 4).
+# Auch die Homebridge-Version selbst ermitteln und ausgeben (wird zusaetzlich
+# fuer die Reuse-Entscheidung in Schritt 4 gebraucht).
 HB_MANIFEST=$(curl -fsSL https://registry.npmjs.org/homebridge/latest 2>/dev/null || echo "")
 LATEST_HB_VERSION=$(printf '%s' "$HB_MANIFEST" | grep -oP '"version"\s*:\s*"\K[^"]+' | head -1)
 INSTALLED_HB_PKG="$HB_NPM_GLOBAL/lib/node_modules/homebridge/package.json"
 INSTALLED_HB_VERSION=""
 if [ -f "$INSTALLED_HB_PKG" ]; then
     INSTALLED_HB_VERSION=$(grep -oP '"version"\s*:\s*"\K[^"]+' "$INSTALLED_HB_PKG" | head -1)
+fi
+
+if [ -n "$LATEST_HB_VERSION" ]; then
+    if [ -n "$INSTALLED_HB_VERSION" ] && [ "$INSTALLED_HB_VERSION" = "$LATEST_HB_VERSION" ]; then
+        echo "homebridge ist bereits aktuell (v$INSTALLED_HB_VERSION)."
+    else
+        echo "homebridge: installiert=${INSTALLED_HB_VERSION:-keine}, aktuell auf npm-Registry: $LATEST_HB_VERSION"
+    fi
+else
+    echo "Konnte aktuelle homebridge Version nicht von der npm-Registry abfragen."
 fi
 
 # engines.node MUSS von BEIDEN Paketen passen - homebridge und config-ui-x
