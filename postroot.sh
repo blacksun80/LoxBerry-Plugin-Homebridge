@@ -143,7 +143,33 @@ NODE_CHANGED=0
 if [ "$CURRENT_LOCAL_VERSION" != "$NODE_FULL_VERSION" ]; then
     echo "Installiere isoliertes Node $NODE_FULL_VERSION nach $HB_NODE_DIR ..."
     TMP_TAR="$HB_RUNTIME_DIR/node-${NODE_FULL_VERSION}-linux-${NODE_ARCH}.tar.xz"
-    curl -fsSL "https://nodejs.org/dist/${NODE_FULL_VERSION}/node-${NODE_FULL_VERSION}-linux-${NODE_ARCH}.tar.xz" -o "$TMP_TAR"
+    NODE_DL_URL="https://nodejs.org/dist/${NODE_FULL_VERSION}/node-${NODE_FULL_VERSION}-linux-${NODE_ARCH}.tar.xz"
+
+    # Download im Hintergrund + Heartbeat alle 15s (mit bisher geladener Groesse),
+    # sonst gibt curl mit -s (unterdrueckt auch die Fortschrittsanzeige) ueber
+    # Minuten hinweg keinerlei Lebenszeichen aus - das wirkt wie ein Haenger.
+    # --speed-time/--speed-limit brechen ab, wenn der Transfer wirklich steht
+    # (< 1 KB/s laenger als 30s), statt endlos lautlos zu warten.
+    curl -fsSL --connect-timeout 15 --speed-time 30 --speed-limit 1024 \
+        "$NODE_DL_URL" -o "$TMP_TAR" &
+    CURL_PID=$!
+
+    SECONDS=0
+    while kill -0 "$CURL_PID" 2>/dev/null; do
+        sleep 15
+        MINS=$((SECONDS / 60)); SECS=$((SECONDS % 60))
+        DL_SIZE=$(du -h "$TMP_TAR" 2>/dev/null | cut -f1)
+        echo "... Node-Download laeuft noch (${MINS}m ${SECS}s) - bisher geladen: ${DL_SIZE:-0}"
+    done
+
+    CURL_RC=0
+    wait "$CURL_PID" || CURL_RC=$?
+    if [ "$CURL_RC" -ne 0 ]; then
+        echo "FEHLER: Download von Node $NODE_FULL_VERSION fehlgeschlagen (curl Exit $CURL_RC)."
+        rm -f "$TMP_TAR"
+        exit 1
+    fi
+
     rm -rf "$HB_NODE_DIR"
     mkdir -p "$HB_NODE_DIR"
     tar -xJf "$TMP_TAR" -C "$HB_NODE_DIR" --strip-components=1

@@ -5,8 +5,8 @@ Leitfaden für die Arbeit an diesem Repository. Kurz halten, Fakten prüfen, nic
 ## Was das ist
 
 LoxBerry-Plugin (Plugin-Interface **2.0**), das **Homebridge** + **homebridge-config-ui-x**
-auf einem LoxBerry (Raspberry Pi / Debian bookworm, i. d. R. arm64) installiert und als
-systemd-Dienst betreibt. Homebridge läuft in einem **isolierten Node.js**, nicht im System-Node.
+auf einem LoxBerry (Raspberry Pi / Debian, arm64/armv7/x64) installiert und als systemd-Dienst
+betreibt. Homebridge läuft in einem **isolierten Node.js**, nicht im System-Node.
 
 Kein Anwendungscode im klassischen Sinn – das Plugin besteht aus **Bash-Installationsskripten**,
 einem CGI-Webfrontend (Perl/`index.cgi`) und HTML-Templates.
@@ -14,16 +14,25 @@ einem CGI-Webfrontend (Perl/`index.cgi`) und HTML-Templates.
 ## Ablauf der Installation/Updates (wichtig!)
 
 LoxBerry-Hook-Reihenfolge bei einem **Update**:
-`preroot` (root) → `preupgrade` (loxberry) → **alte Plugin-Ordner werden gelöscht** →
-`preinstall` → Dateien kopieren → `postupgrade` → `postinstall` → `postroot` (root).
+`preroot` (root) → **alte Plugin-Ordner werden gelöscht** → `preinstall` → Dateien kopieren →
+`postinstall` → `postroot` (root).
+
+(Es gibt kein `preupgrade.sh` mehr – die Config-Sicherung läuft komplett in `preroot.sh`, weil
+das robuster ist: `preroot` läuft garantiert als root und garantiert vor dem Löschen, bei Install
+*und* Update gleichermaßen.)
 
 Daraus folgt die zentrale Design-Entscheidung: Der Config-Ordner wird beim Update gelöscht,
 **bevor** `postroot` läuft. Deshalb:
 
-- **`preroot.sh`** (root, vor dem Löschen, bei Install *und* Update):
+- **`preroot.sh`** (root, vor dem Löschen, bei Install *und* Update), 3 Schritte:
   1. Homebridge stoppen (`systemctl stop homebridge.service`) + Port **8082** freigeben
      (Fallback `fuser`/`ss`/`lsof`, sanft dann SIGKILL).
   2. Config sichern nach `data/system/tmp/homebridge_config_backup/backup_<ts>` (rotiert, letzte 5).
+  3. Überbleibsel der **allerersten** Plugin-Version entfernen, falls vorhanden: die hat Homebridge
+     + config-ui-x per `npm install -g` systemweit installiert (`/usr/local/lib/node_modules/homebridge`,
+     `/usr/local/lib/node_modules/homebridge-config-ui-x`, `/usr/local/bin/homebridge`,
+     `/usr/local/bin/hb-service`). Sonst bleibt das als Leiche liegen und Homebridge meldet
+     „Multiple instances of Homebridge were found". Rührt **nicht** an System-Node/npm selbst.
 - **`postroot.sh`** (root, nach dem Löschen), 5 Schritte:
   1. Config aus dem preroot-Backup wiederherstellen.
   2. Homebridge-/Node-Version ermitteln (via `curl` an die npm-Registry; Node-Major aus `engines.node`, Fallback 22).
@@ -33,7 +42,9 @@ Daraus folgt die zentrale Design-Entscheidung: Der Config-Ordner wird beim Updat
 - **`uninstall/uninstall`** (root): Dienst + Unit entfernen, Config-Backups + persistente Runtime löschen.
 
 **Das System-Node wird NICHT angefasst** (kein Entfernen, kein apt-Install). Homebridge nutzt
-ausschließlich das isolierte Node der persistenten Runtime.
+ausschließlich das isolierte Node der persistenten Runtime. (Eine frühere Fassung hat versucht,
+„fremdes" Node unter `/usr/local` zu entfernen – das ist raus, weil LoxBerry 4 selbst ein Node
+dort ablegen kann, das andere Komponenten brauchen.)
 
 ## Feste Pfade / Invarianten
 
@@ -44,18 +55,26 @@ ausschließlich das isolierte Node der persistenten Runtime.
 - Config-Backups: `data/system/tmp/homebridge_config_backup/`.
 - systemd-Unit: **`homebridge.service`**, UI-Port **8082**, User **loxberry**.
 
-Alles unter `data/system/` überlebt Updates; Plugin-Ordner (`config/plugins/…`, `data/plugins/…`, `bin/plugins/…`) werden bei jedem Update gelöscht.
+Alles unter `data/system/` überlebt Updates; Plugin-Ordner (`config/plugins/…`, `data/plugins/…`,
+`bin/plugins/…`) werden bei jedem Update gelöscht.
+
+**Frühe Entwicklungsstände** (nie released) haben die Runtime versehentlich in
+`data/plugins/homebridge/nodejs` bzw. `/npm-global` abgelegt – root-eigen, innerhalb eines
+Plugin-Ordners. Das führt beim Update zu tausenden „permission denied", weil LoxBerry diesen
+Ordner als User `loxberry` löscht. Betrifft nur Testsysteme mit diesem Zwischenstand, kein
+Cleanup dafür im Code (bewusst, da nie released – manuell per `rm -rf` auf dem betroffenen
+System beheben).
 
 ## Kompatibilität mit Altinstallationen (nicht zerschießen!)
 
-Das alte Plugin (vor 2026, Commit `a77a16e`) nutzte **System-Node** (`n stable`, `/usr/local/...`),
-aber denselben `hb-service`-Aufruf: gleiche Unit, gleicher Storage-Pfad, Port 8082, User loxberry.
+Das alte, released Plugin (vor 2026, Commit `a77a16e`) nutzte **System-Node** (`n stable`,
+`/usr/local/...`) und installierte Homebridge + config-ui-x systemweit per `npm install -g`,
+aber mit demselben `hb-service`-Aufruf: gleiche Unit, gleicher Storage-Pfad, Port 8082, User
+loxberry. preroot-Schritt 3 räumt genau diese alte, systemweite npm-Installation weg (siehe oben).
 
-**Wichtig:** Das System-Node in `/usr/local/bin` wird **nicht** entfernt – LoxBerry 4 (Debian
-trixie) bringt selbst ein Node dort mit, das andere Komponenten brauchen. (Eine frühere Version
-des Plugins hat es fälschlich als „Fremdinstallation" gelöscht – das ist raus.) Homebridge läuft
-nur im isolierten Node. Beim Übergang alt→neu registriert Schritt 5 den Dienst **immer neu**
-(uninstall + install unter isoliertem Node), damit die alte Unit nicht mehr auf ein fremdes Node zeigt.
+Beim Übergang alt→neu registriert postroot-Schritt 5 den Dienst **immer neu** (uninstall +
+install unter isoliertem Node statt nur `restart`), damit die Unit nicht mehr auf ein fremdes/
+gelöschtes Node zeigt.
 
 ## Konventionen / Fallstricke
 
@@ -65,12 +84,26 @@ nur im isolierten Node. Beim Übergang alt→neu registriert Schritt 5 den Diens
 - Versionsabfragen per **`curl` an `registry.npmjs.org`**, *nicht* `npm view` – das Debian-`npm`-apt-Paket
   zieht ~349 Pakete nach und darf **nicht** installiert werden.
 - npm-Install läuft non-TTY → **Heartbeat** (alle 15 s) + eigenes Logfile in der Runtime, sonst wirkt es „hängt".
+- **Den alten Storage-Pfad eines bestehenden `homebridge.service` NICHT zu ermitteln versuchen** –
+  ein früherer Versuch (grep auf `/etc/default/homebridge` bzw. die `.service`-Datei nach `-U`) war
+  je nach hb-service-Version unzuverlässig und wurde ersatzlos gestrichen. Wird auch nicht gebraucht:
+  wir registrieren den Dienst ohnehin immer mit dem festen `$HB_STORAGE_DIR` neu.
 - Kommentare/Log-Ausgaben auf Deutsch (Ziel: der/die Betreiber:in liest das LoxBerry-Log).
 - Hook-Skripte werden von Interface 2.0 **automatisch am Dateinamen erkannt** – kein `plugin.cfg`-Eintrag nötig.
 
 ## Testen / Deployen
 
 - Syntax: `bash -n preroot.sh postroot.sh uninstall/uninstall` (Repo liegt unter Windows/Git-Bash).
-- Echte Prüfung nur auf einem LoxBerry: Plugin-Zip bauen/hochladen und das LoxBerry-Installationslog lesen
-  (Schritte 1–6). Kein lokaler Ersatz dafür.
-- `plugin.cfg`: `VERSION` hochziehen bei Releases; `RELEASECFG`/`PRERELEASECFG` steuern das Autoupdate.
+- Echte Prüfung nur auf einem LoxBerry: Plugin-Zip bauen/hochladen (oder Tag pushen fürs Autoupdate)
+  und das LoxBerry-Installationslog lesen (preroot: Schritte 1–3, postroot: Schritte 1–5). Kein
+  lokaler Ersatz dafür.
+- Ob Homebridge nach der Installation *tatsächlich* läuft, zeigt das Installationslog nur bedingt
+  (`hb-service`-Meldungen sind real, aber kein Langzeit-Health-Check). Verifizieren via SSH:
+  `systemctl status homebridge.service` (erwartet `active (running)`),
+  `curl -I http://localhost:8082` (erwartet `200`), oder `journalctl -u homebridge -n 50`.
+- `plugin.cfg`: `[AUTHOR]`-Block (`NAME`+`EMAIL`) und `[PLUGIN]` `NAME`/`FOLDER` sind die **eingefrorene
+  Identität** des Plugins (LoxBerry-MD5-Matching) – nie ändern, sonst brechen Updates auf allen
+  Installationen. `VERSION` bei Releases hochziehen; `RELEASECFG`/`PRERELEASECFG` steuern das
+  Autoupdate und sollten bei einem Release **gemeinsam** hochgezogen werden (sonst zeigt die
+  Plugin-Verwaltung einen veralteten „New Pre-Release"-Hinweis an). Das Archiv-Zip wird erst mit
+  dem zugehörigen git-Tag (`Homebridge-V<version>`) real – Tag muss vor/mit dem Release existieren.
