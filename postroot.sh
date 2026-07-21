@@ -240,16 +240,10 @@ SERVICE_UNIT="/etc/systemd/system/homebridge.service"
 # Storage-Verzeichnis ($HB_STORAGE_DIR) und werden von "hb-service uninstall"
 # NICHT angetastet - ausserdem haben wir sie in preroot.sh gesichert.
 if systemctl list-unit-files 2>/dev/null | grep -q "^homebridge\.service"; then
-    # hb-service legt den Storage-Pfad (-U) in der EnvironmentFile
-    # /etc/default/homebridge ab (als HOMEBRIDGE_OPTS), NICHT in der .service-Datei.
-    OLD_STORAGE=""
-    if [ -f /etc/default/homebridge ]; then
-        OLD_STORAGE=$(grep -oP -- '-U\s+\K[^"'"'"'[:space:]]+' /etc/default/homebridge | head -1)
-    fi
-    if [ -z "$OLD_STORAGE" ] && [ -f "$SERVICE_UNIT" ]; then
-        OLD_STORAGE=$(grep -oP -- '-U\s+\K\S+' "$SERVICE_UNIT" | head -1)
-    fi
-    echo "Vorhandenen homebridge-Dienst gefunden (bisheriger Storage: ${OLD_STORAGE:-nicht ermittelbar})."
+    # Der Storage-Pfad ($HB_STORAGE_DIR) ist durch die feste Installationsordner-
+    # Konvention ($PDIR=homebridge) immer derselbe - eine Ermittlung des "alten"
+    # Storage-Pfads ist daher unnoetig.
+    echo "Vorhandenen homebridge-Dienst gefunden."
     echo "Wird deinstalliert und mit isoliertem Node neu registriert ..."
     "$HB_SERVICE" uninstall || true
     # Hart nachraeumen, falls das Unit doch noch da ist - sonst bricht das
