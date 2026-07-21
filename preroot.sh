@@ -109,4 +109,26 @@ if [ -d "$BACKUP_ROOT" ]; then
     fi
 fi
 
+echo ""
+echo "============================================================"
+echo "Schritt 3: Alt-Runtime aus fruehen Versionen aufraeumen"
+echo "============================================================"
+
+# Fruehe Entwicklungsversionen haben das isolierte Node.js + Homebridge (als root)
+# INNERHALB des Plugin-Datenordners abgelegt ($LBPDATA/$PDIR/nodejs bzw.
+# /npm-global). Beim Update loescht der LoxBerry-Installer diesen Ordner als User
+# "loxberry" und scheitert an den root-eigenen Dateien -> tausende "permission
+# denied" und verwaister Muell. preroot laeuft als root und raeumt das hier vorab
+# weg, BEVOR der Installer loescht. (Ab v0.3 liegt die Runtime persistent unter
+# data/system/homebridge_runtime, dieser Ordner ist also nur noch Altlast.)
+LEGACY_PDATA="$LBPDATA/$PDIR"
+for d in nodejs npm-global; do
+    if [ -d "$LEGACY_PDATA/$d" ]; then
+        echo "<INFO> Entferne Alt-Runtime $LEGACY_PDATA/$d ..."
+        rm -rf "$LEGACY_PDATA/$d"
+    fi
+done
+rm -f "$LEGACY_PDATA/npm-install.log" 2>/dev/null || true
+echo "<OK> Aufraeumen abgeschlossen."
+
 exit 0
