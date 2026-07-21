@@ -243,6 +243,18 @@ fi
 
 "$HB_NPM_GLOBAL/bin/homebridge" -V 2>/dev/null || true
 
+# Die komplette Runtime (Node + npm-global mit allen node_modules) wurde bis
+# hierher komplett als root gebaut/installiert. Der Dienst laeuft aber als User
+# "loxberry" (siehe Schritt 5). Zum reinen AUSFUEHREN reicht das (root-eigene
+# Dateien sind fuer "andere" i.d.R. lesbar/ausfuehrbar), aber "loxberry" kann
+# NICHT in die root-eigene npm-global-Baumstruktur SCHREIBEN. Das bricht das
+# Installieren/Aktualisieren von Homebridge-Plugins ueber die Config-UI-
+# Weboberflaeche, die intern npm install/update genau gegen diesen Pfad
+# ausfuehrt. Deshalb hier auf loxberry umchownen - unabhaengig davon, ob oben
+# neu gebaut oder die vorhandene Runtime wiederverwendet wurde.
+echo "Setze Owner von $HB_RUNTIME_DIR auf loxberry:loxberry (fuer Plugin-Installation ueber die Config-UI) ..."
+chown -R loxberry:loxberry "$HB_RUNTIME_DIR"
+
 echo ""
 echo "============================================================"
 echo "Schritt 5: hb-service einrichten (Storage: $HB_STORAGE_DIR)"

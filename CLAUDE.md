@@ -38,8 +38,38 @@ Daraus folgt die zentrale Design-Entscheidung: Der Config-Ordner wird beim Updat
   2. Homebridge-/Node-Version ermitteln (via `curl` an die npm-Registry; Node-Major aus `engines.node`, Fallback 22).
   3. Isoliertes Node.js in die **persistente Runtime** einrichten (nur bei anderer Version neu).
   4. Homebridge + config-ui-x installieren/aktualisieren (**Skip**, wenn Node unverändert *und* beide aktuell).
-  5. `hb-service` registrieren (immer uninstall+install, damit die Unit auf das isolierte Node zeigt).
+  5. `hb-service` registrieren (immer uninstall+install, **danach zwingend PATH-Fix in der Unit** – siehe unten).
 - **`uninstall/uninstall`** (root): Dienst + Unit entfernen, Config-Backups + persistente Runtime löschen.
+
+### Kritisch: `hb-service install` erzeugt eine Unit ohne `Environment=PATH=`
+
+`hb-service ... install` schreibt `/etc/systemd/system/homebridge.service` **ohne eigenes
+`Environment=PATH=`**. `ExecStart` ruft die `.js`-Datei direkt auf (`#!/usr/bin/env node`-Shebang) –
+die Node-Auflösung passiert dadurch zur **Laufzeit über systemds Standard-PATH**, nicht über
+irgendeinen PATH, den `postroot.sh` waihrend der Installation gesetzt hatte.
+
+Auf LoxBerry 4 (Debian trixie) liegt unter `/usr/local/bin/node` ein **eigenes, viel neueres**
+System-Node (z. B. v26), das in diesem Standard-PATH **vor** unserer isolierten Runtime gefunden
+wird. Folge: Die Config-UI läuft mit der falschen Node-Version, natives `node-pty` (ABI-gebunden,
+kompiliert für unser Node 22 beim `npm install`) lässt sich nicht laden
+(`Cannot find module '../build/Release/pty.node'`), die Weboberfläche crasht in einer
+**Restart-Schleife** (`journalctl` zeigt hochlaufenden „restart counter", ohne erkennbaren Fehler –
+der eigentliche Stack-Trace steht nicht im Journal, sondern in
+`$HB_STORAGE_DIR/homebridge.log`!). Die reine HAP-Bridge (Homebridge-Kern) läuft davon unbeeindruckt
+auf einem eigenen Port weiter – das täuscht im Log Erfolg vor, obwohl Port 8082 nie erreichbar ist.
+
+**Fix** ([postroot.sh](postroot.sh), direkt nach `hb-service ... install`): Die generierte Unit wird
+per `sed` um `Environment=PATH=$HB_NODE_DIR/bin:$HB_NPM_GLOBAL/bin:<Standard-PATH>` ergänzt (idempotent
+– alte Zeile wird vorher entfernt), dann `daemon-reload` + `restart`. Muss bei **jedem** Lauf erneut
+passieren, weil `hb-service install` die Unit jedes Mal neu schreibt (auch bei jedem Plugin-Update).
+Scope ist strikt auf diese eine Unit begrenzt (`Environment=` in einer systemd-Unit wirkt nie auf
+andere Units/Plugins/Shells).
+
+Debugging-Weg, falls das je wieder auftaucht: `systemctl status homebridge.service` (Restart-Counter?)
+→ `journalctl -u homebridge.service -n 100` (zeigt nur „Storage/Config/Log path"-Debug-Zeilen, keinen
+Fehler) → **`tail -n 100 $HB_STORAGE_DIR/homebridge.log`** (zeigt den echten Stack-Trace) →
+`sudo -u loxberry <isoliertes-node> -v` testen. Journal reicht hier NICHT aus, das eigentliche
+Fehlerbild steckt in homebridge.log.
 
 **Das System-Node wird NICHT angefasst** (kein Entfernen, kein apt-Install). Homebridge nutzt
 ausschließlich das isolierte Node der persistenten Runtime. (Eine frühere Fassung hat versucht,
@@ -98,9 +128,13 @@ gelöschtes Node zeigt.
   und das LoxBerry-Installationslog lesen (preroot: Schritte 1–3, postroot: Schritte 1–5). Kein
   lokaler Ersatz dafür.
 - Ob Homebridge nach der Installation *tatsächlich* läuft, zeigt das Installationslog nur bedingt
-  (`hb-service`-Meldungen sind real, aber kein Langzeit-Health-Check). Verifizieren via SSH:
-  `systemctl status homebridge.service` (erwartet `active (running)`),
-  `curl -I http://localhost:8082` (erwartet `200`), oder `journalctl -u homebridge -n 50`.
+  (`hb-service`-Meldungen sind real, aber kein Langzeit-Health-Check – „Setup complete" kann sich auf
+  einen Start beziehen, der Sekunden später crasht). Verifizieren via SSH:
+  `systemctl status homebridge.service` (erwartet `active (running)`, **kein** hochlaufender
+  „restart counter"), `curl -I http://localhost:8082` (erwartet `200`).
+  **`journalctl -u homebridge.service` zeigt bei einem Absturz meist nur Debug-Zeilen (Storage-/
+  Config-/Log-Pfad), nicht den eigentlichen Fehler** – der steht in
+  `$HB_STORAGE_DIR/homebridge.log` (`tail -n 100 .../homebridge.log`).
 - `plugin.cfg`: `[AUTHOR]`-Block (`NAME`+`EMAIL`) und `[PLUGIN]` `NAME`/`FOLDER` sind die **eingefrorene
   Identität** des Plugins (LoxBerry-MD5-Matching) – nie ändern, sonst brechen Updates auf allen
   Installationen. `VERSION` bei Releases hochziehen; `RELEASECFG`/`PRERELEASECFG` steuern das
