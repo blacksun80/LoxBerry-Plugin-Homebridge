@@ -40,6 +40,23 @@ set -e
 mkdir -p "$HB_STORAGE_DIR"
 mkdir -p "$HB_RUNTIME_DIR" "$HB_NPM_GLOBAL"
 
+# CPU-Architektur schon hier ermitteln (nicht erst in Schritt 3) - wird in
+# Schritt 2 gebraucht, um bei der Node-Major-Auswahl nur Versionen in Betracht
+# zu ziehen, fuer die nodejs.org ueberhaupt einen Build fuer diese Architektur
+# anbietet. Ab Node 24 gibt es z.B. keine offiziellen Linux-32-Bit-ARM-Builds
+# (armv7l) mehr - auf so einem Geraet (Raspberry Pi 2/Zero/3 im 32-Bit-Modus)
+# waere ein stur "hoechste gemeinsame Major-Version"-Fallback ein 404-Fehlschlag.
+ARCH=$(uname -m)
+case "$ARCH" in
+    aarch64) NODE_ARCH="arm64" ;;
+    armv7l)  NODE_ARCH="armv7l" ;;
+    x86_64)  NODE_ARCH="x64" ;;
+    *)
+        echo "FEHLER: Unbekannte/nicht unterstuetzte Architektur: $ARCH"
+        exit 1
+        ;;
+esac
+
 echo "============================================================"
 echo "Schritt 1: Homebridge-Config wiederherstellen (falls Backup da)"
 echo "============================================================"
@@ -112,52 +129,63 @@ REQUIRED_RANGE_HB=$(printf '%s' "$HB_MANIFEST" | grep -oP '"engines"\s*:\s*\{[^}
 
 if [ -z "$REQUIRED_RANGE_UI" ] || [ -z "$REQUIRED_RANGE_HB" ]; then
     echo "Konnte engines.node nicht von beiden Paketen abfragen - Fallback auf Node 22."
-    TARGET_MAJOR=22
+    CANDIDATE_MAJORS=22
 else
     echo "engines.node von homebridge-config-ui-x: $REQUIRED_RANGE_UI"
     echo "engines.node von homebridge: $REQUIRED_RANGE_HB"
     MAJORS_UI=$(echo "$REQUIRED_RANGE_UI" | grep -oP '\^\K[0-9]+' | sort -nu)
     MAJORS_HB=$(echo "$REQUIRED_RANGE_HB" | grep -oP '\^\K[0-9]+' | sort -nu)
     # Schnittmenge (grep -Fxf statt "comm", damit die Sortierreihenfolge der
-    # Eingaben keine Rolle spielt), davon die HOECHSTE gemeinsame Major-Version -
-    # laengste Restlaufzeit bis zum Node-EOL unter den Versionen, die beide
-    # Pakete tatsaechlich freigeben.
-    TARGET_MAJOR=$(echo "$MAJORS_UI" | grep -Fxf <(echo "$MAJORS_HB") | sort -n | tail -1)
-    if [ -z "$TARGET_MAJOR" ]; then
+    # Eingaben keine Rolle spielt), ABSTEIGEND sortiert - wir bevorzugen die
+    # hoechste gemeinsame Major-Version (laengste Restlaufzeit bis zum
+    # Node-EOL), fallen aber weiter unten auf die naechstniedrigere zurueck,
+    # falls nodejs.org dafuer keinen Build fuer unsere Architektur hat.
+    CANDIDATE_MAJORS=$(echo "$MAJORS_UI" | grep -Fxf <(echo "$MAJORS_HB") | sort -rn)
+    if [ -z "$CANDIDATE_MAJORS" ]; then
         echo "Keine gemeinsame Major-Version zwischen homebridge und config-ui-x gefunden - Fallback auf Node 22."
-        TARGET_MAJOR=22
+        CANDIDATE_MAJORS=22
     fi
 fi
-echo "Gewaehlte Ziel-Major-Version fuer das isolierte Homebridge-Node: v${TARGET_MAJOR}"
+
+# Von den in Frage kommenden Major-Versionen (absteigend) die erste nehmen,
+# fuer die nodejs.org tatsaechlich einen Build fuer unsere Architektur
+# ($NODE_ARCH) anbietet. Ab Node 24 gibt es z.B. keine offiziellen
+# linux-armv7l-Builds mehr - ohne diesen Check wuerde stur die hoechste
+# gemeinsame Major-Version gewaehlt und der Download schluege mit einem
+# 404 fehl (genau das ist auf einem 32-Bit-Pi passiert).
+NODE_INDEX=$(curl -fsSL https://nodejs.org/dist/index.json 2>/dev/null || echo "")
+TARGET_MAJOR=""
+NODE_FULL_VERSION=""
+for CANDIDATE in $CANDIDATE_MAJORS; do
+    FULL=$(printf '%s' "$NODE_INDEX" | grep -oP "\"version\":\"v${CANDIDATE}\.[0-9]+\.[0-9]+\"" | head -1 | grep -oP 'v[0-9.]+')
+    if [ -z "$FULL" ]; then
+        echo "Keine Node v${CANDIDATE}.x Version auf nodejs.org gefunden - ueberspringe."
+        continue
+    fi
+    DL_URL="https://nodejs.org/dist/${FULL}/node-${FULL}-linux-${NODE_ARCH}.tar.xz"
+    if curl -fsSL --connect-timeout 15 -o /dev/null -I "$DL_URL"; then
+        TARGET_MAJOR=$CANDIDATE
+        NODE_FULL_VERSION=$FULL
+        break
+    else
+        echo "Node $FULL hat keinen Build fuer linux-${NODE_ARCH} - versuche naechstniedrigere gemeinsame Major-Version."
+    fi
+done
+
+if [ -z "$TARGET_MAJOR" ]; then
+    echo "FEHLER: Keine der gemeinsam unterstuetzten Node-Major-Versionen ($(echo $CANDIDATE_MAJORS)) bietet einen Build fuer linux-${NODE_ARCH} an."
+    exit 1
+fi
+
+echo "Gewaehlte Ziel-Major-Version fuer das isolierte Homebridge-Node: v${TARGET_MAJOR} ($NODE_FULL_VERSION)"
 
 echo ""
 echo "============================================================"
 echo "Schritt 3: Isoliertes Node.js einrichten (persistent, wird wiederverwendet)"
 echo "============================================================"
 
-ARCH=$(uname -m)
-case "$ARCH" in
-    aarch64) NODE_ARCH="arm64" ;;
-    armv7l)  NODE_ARCH="armv7l" ;;
-    x86_64)  NODE_ARCH="x64" ;;
-    *)
-        echo "FEHLER: Unbekannte/nicht unterstuetzte Architektur: $ARCH"
-        exit 1
-        ;;
-esac
-
 echo "Erkannte Architektur: $ARCH -> Node-Paket-Architektur: $NODE_ARCH"
-
-NODE_FULL_VERSION=$(curl -fsSL https://nodejs.org/dist/index.json \
-    | grep -oP "\"version\":\"v${TARGET_MAJOR}\.[0-9]+\.[0-9]+\"" \
-    | head -1 | grep -oP 'v[0-9.]+')
-
-if [ -z "$NODE_FULL_VERSION" ]; then
-    echo "FEHLER: Konnte keine Node v${TARGET_MAJOR}.x Version von nodejs.org ermitteln."
-    exit 1
-fi
-
-echo "Neueste verfuegbare Node v${TARGET_MAJOR}.x Version: $NODE_FULL_VERSION"
+echo "Verwende Node $NODE_FULL_VERSION (bereits als kompatibel mit dieser Architektur geprueft)."
 
 CURRENT_LOCAL_VERSION=""
 if [ -x "$HB_NODE_DIR/bin/node" ]; then
