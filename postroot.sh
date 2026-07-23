@@ -229,12 +229,12 @@ for CANDIDATE in $CANDIDATE_MAJORS; do
         continue
     fi
     DL_URL="https://nodejs.org/dist/${FULL}/node-${FULL}-linux-${NODE_ARCH}.tar.xz"
-    if curl -fsSL --connect-timeout 15 -o /dev/null -I "$DL_URL"; then
+    if curl -fsSL --connect-timeout 15 -o /dev/null -I "$DL_URL" 2>/dev/null; then
         TARGET_MAJOR=$CANDIDATE
         NODE_FULL_VERSION=$FULL
         break
     else
-        echo "Node $FULL hat keinen Build fuer linux-${NODE_ARCH} - versuche naechstniedrigere gemeinsame Major-Version."
+        echo "<WARNUNG> Node $FULL hat keinen Build fuer linux-${NODE_ARCH} - versuche naechstniedrigere gemeinsame Major-Version."
     fi
 done
 
