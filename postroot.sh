@@ -8,7 +8,8 @@
 # Schritt 3: Homebridge-/Node-Version ermitteln.
 # Schritt 4: Isoliertes Node.js fuer Homebridge einrichten (persistent).
 # Schritt 5: Homebridge + Config UI X installieren (isoliert).
-# Schritt 6: hb-service einrichten/neu starten.
+# Schritt 6: sudoers secure_path fuer Plugin-Installation ueber die Config-UI setzen.
+# Schritt 7: hb-service einrichten/neu starten.
 #
 # Hinweis: Das System-Node des LoxBerry wird bewusst NICHT angefasst - Homebridge
 # laeuft komplett im isolierten Node unter der persistenten Runtime.
@@ -396,7 +397,65 @@ chown -R loxberry:loxberry "$HB_RUNTIME_DIR"
 
 echo ""
 echo "============================================================"
-echo "Schritt 6: hb-service einrichten (Storage: $HB_STORAGE_DIR)"
+echo "Schritt 6: sudoers secure_path fuer Plugin-Installation ueber die Config-UI"
+echo "============================================================"
+
+# homebridge-config-ui-x ruft beim Installieren/Aktualisieren von Plugins ueber
+# die Weboberflaeche intern "sudo -E -n npm install ..." auf - OHNE vollen Pfad
+# zu npm. sudo schaut dabei NICHT in den PATH des aufrufenden Prozesses (auch
+# nicht mit -E), sondern ausschliesslich in seine EIGENE, in
+# /etc/sudoers(.d/...) festgelegte secure_path-Liste. Stand dort bisher zuerst
+# ein System-Pfad (z.B. /usr/bin), landete man beim SYSTEM-npm (oft eine sehr
+# alte Version, z.B. 7.5.2 unter Node 12) statt bei unserem isolierten npm -
+# Folge: der "node:os"-Fehler im Postinstall-Skript frisch installierter
+# Plugins, die eine moderne Node-Version voraussetzen.
+#
+# Fix: Eine eigene sudoers.d-Datei fuer den User "loxberry", die secure_path so
+# setzt, dass unser isoliertes Node/npm ($HB_NODE_DIR/bin, $HB_NPM_GLOBAL/bin)
+# darin an ERSTER Stelle steht. Die Standard-Systempfade danach bleiben
+# erhalten, weil "Defaults:loxberry secure_path=..." den PATH fuer ALLE
+# sudo-Aufrufe dieses Users ersetzt, nicht nur fuer npm - andere sudo-faehige
+# Befehle (z.B. von anderen LoxBerry-Plugins) brauchen die Systempfade also
+# weiterhin.
+#
+# Wird bei JEDEM Lauf neu geschrieben (idempotent), damit z.B. ein manueller
+# Eingriff an dieser Datei nicht unbemerkt von der Runtime abweicht.
+SUDOERS_FILE="/etc/sudoers.d/loxberry-homebridge"
+SUDOERS_TMP="$HB_RUNTIME_DIR/loxberry-homebridge.sudoers.tmp"
+
+cat > "$SUDOERS_TMP" <<EOF
+Defaults:loxberry secure_path="${HB_NODE_DIR}/bin:${HB_NPM_GLOBAL}/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+EOF
+
+# Syntax IMMER gegen die TEMP-Datei pruefen, bevor sie live nach
+# /etc/sudoers.d/ verschoben wird - ein kaputter Eintrag dort wuerde sonst
+# JEDEN sudo-Aufruf des Users "loxberry" lahmlegen (inkl. anderer
+# LoxBerry-Plugins, die auf sudo als loxberry angewiesen sind).
+if ! visudo -c -f "$SUDOERS_TMP" >/dev/null 2>&1; then
+    echo "FEHLER: Neue sudoers-Konfiguration ist syntaktisch ungueltig - wird NICHT uebernommen."
+    visudo -c -f "$SUDOERS_TMP" || true
+    rm -f "$SUDOERS_TMP"
+    exit 1
+fi
+
+# Rechte MUESSEN 0440 sein (root:root) - sudo ignoriert sudoers.d-Dateien mit
+# "zu offenen" Rechten sonst komplett (siehe "bad permissions"-Warnung von
+# "visudo -c" bei anderen Dateien in /etc/sudoers.d/ auf diesem System).
+install -o root -g root -m 0440 "$SUDOERS_TMP" "$SUDOERS_FILE"
+rm -f "$SUDOERS_TMP"
+
+# Finaler Check der SCHARF geschalteten Datei - faengt auch den Fall ab, dass
+# "install" aus irgendeinem Grund doch falsche Rechte gesetzt haette.
+if ! visudo -c -f "$SUDOERS_FILE" >/dev/null 2>&1; then
+    echo "FEHLER: $SUDOERS_FILE ist nach dem Schreiben syntaktisch/rechtlich ungueltig."
+    exit 1
+fi
+
+echo "<OK> $SUDOERS_FILE gesetzt - isoliertes Node/npm ($HB_NODE_DIR/bin) steht in secure_path an erster Stelle."
+
+echo ""
+echo "============================================================"
+echo "Schritt 7: hb-service einrichten (Storage: $HB_STORAGE_DIR)"
 echo "============================================================"
 
 export PATH="$HB_NODE_DIR/bin:$HB_NPM_GLOBAL/bin:$PATH"
