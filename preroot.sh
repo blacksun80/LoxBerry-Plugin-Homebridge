@@ -122,14 +122,21 @@ echo "============================================================"
 # von diesem Plugin verwalteten Pfade und wird von keinem anderen Skript
 # angefasst - sie bleibt sonst als tote Leiche liegen und die
 # Homebridge-UI meldet "Multiple instances of Homebridge were found".
-for d in /usr/local/lib/node_modules/homebridge /usr/local/lib/node_modules/homebridge-config-ui-x; do
-    if [ -d "$d" ]; then
+# Glob statt fester Namen: erwischt so auch alte, systemweit mitinstallierte
+# Homebridge-Plugins (z.B. "homebridge-irgendwas"), nicht nur die beiden
+# Kernpakete selbst.
+shopt -s nullglob
+OLD_HOMEBRIDGE_DIRS=(/usr/local/lib/node_modules/homebridge*)
+shopt -u nullglob
+
+if [ "${#OLD_HOMEBRIDGE_DIRS[@]}" -eq 0 ]; then
+    echo "<INFO> Keine alten systemweiten homebridge*-Ordner unter /usr/local/lib/node_modules gefunden - nichts zu tun."
+else
+    for d in "${OLD_HOMEBRIDGE_DIRS[@]}"; do
         echo "<INFO> Entferne alte systemweite Installation $d ..."
         rm -rf "$d"
-    else
-        echo "<INFO> $d nicht vorhanden - nichts zu tun."
-    fi
-done
+    done
+fi
 for b in /usr/local/bin/homebridge /usr/local/bin/hb-service; do
     if [ -e "$b" ]; then
         echo "<INFO> Entferne alten Symlink $b ..."
