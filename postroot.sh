@@ -90,11 +90,11 @@ elif [ -n "$NODESOURCE_REPO_FOUND" ]; then
     echo "<INFO> System-Node/npm fehlt oder funktioniert nicht, UND es wurde ein NodeSource-Repo (deb.nodesource.com) in den apt-Quellen gefunden - vermutlich ein Ueberbleibsel eines frueheren Skript-Laufs. Automatische Reparatur wird uebersprungen, um nicht wieder von dieser Fremdquelle zu installieren. Bitte manuell pruefen: /etc/apt/sources.list.d/ (nodesource-Eintrag) und ggf. bereinigen, bevor System-Node/npm neu installiert wird. Betrifft NICHT die Homebridge-Installation (laeuft komplett isoliert weiter unten)."
 else
     echo "System-Node und/oder System-npm fehlen oder funktionieren nicht - versuche Reparatur via apt-get ..."
-    if ! apt-get update -qq >/dev/null 2>&1; then
+    if ! apt-get update; then
         echo "<INFO> 'apt-get update' fehlgeschlagen (evtl. kein Netzwerk/keine Repos erreichbar)."
     fi
-    apt-get install -y --reinstall nodejs npm >/dev/null 2>&1 \
-        || apt-get install -y nodejs npm >/dev/null 2>&1 \
+    apt-get install -y --reinstall nodejs npm \
+        || apt-get install -y nodejs npm \
         || true
 
     if check_system_node; then
