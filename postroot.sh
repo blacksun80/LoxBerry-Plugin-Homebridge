@@ -234,7 +234,7 @@ for CANDIDATE in $CANDIDATE_MAJORS; do
         NODE_FULL_VERSION=$FULL
         break
     else
-        echo "<WARNUNG> Node $FULL hat keinen Build fuer linux-${NODE_ARCH} - versuche naechstniedrigere gemeinsame Major-Version."
+        echo "<WARNING> Node $FULL hat keinen Build fuer linux-${NODE_ARCH} - versuche naechstniedrigere gemeinsame Major-Version."
     fi
 done
 
