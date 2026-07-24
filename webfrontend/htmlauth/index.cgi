@@ -31,10 +31,10 @@ if ( defined $cgi->param('ajax') && $cgi->param('ajax') eq 'status' ) {
 my $lang = LoxBerry::System::lblanguage() || 'en';
 my %T = $lang eq 'de'
     ? ( title  => 'Homebridge',
-        running => 'Homebridge laeuft',
-        stopped => 'Homebridge laeuft nicht',
+        running => 'Homebridge läuft',
+        stopped => 'Homebridge läuft nicht',
         unknown => 'Status unbekannt',
-        open    => 'Homebridge-Oberflaeche oeffnen',
+        open    => 'Homebridge-Oberfläche öffnen',
         state   => 'Status' )
     : ( title  => 'Homebridge',
         running => 'Homebridge is running',
@@ -50,6 +50,14 @@ my $hburl = "http://$host:8082";
 
 my $status = hb_status();
 
+# Button nativ ausgeben: neues LoxBerry-Design (LB4+, lb-btn) vs. jQuery Mobile
+# (LB3 und aelter, data-role=button). Erkennung ueber die Design-CSS.
+my $lbhome = $ENV{'LBHOMEDIR'} || '/opt/loxberry';
+my $newdesign = -e "$lbhome/webfrontend/html/system/css/theme-soft-rounded.css";
+my $btn = $newdesign
+    ? qq{<a class="lb-btn lb-btn-primary" data-role="none" href="$hburl" target="_blank" rel="noopener">$T{open}</a>}
+    : qq{<a href="$hburl" data-role="button" data-inline="true" target="_blank" rel="noopener">$T{open}</a>};
+
 our $template_title = $T{title};
 my $helplink = "https://wiki.loxberry.de/plugins/homebridge/start";
 
@@ -63,13 +71,12 @@ print <<"HTML";
             background: #999; margin-right: 8px; vertical-align: middle; }
   #hb-dot.ok  { background: #3fae4b; }
   #hb-dot.bad { background: #d33; }
-  #hb-open { display: inline-block; margin-top: 1em; padding: 0.6em 1.2em; border-radius: 8px;
-             background: #0a7a5a; color: #fff; text-decoration: none; }
+  #hb-btnwrap { margin-top: 1em; }
 </style>
 
 <div id="hb-card">
   <div><span id="hb-dot"></span><span id="hb-state">...</span></div>
-  <a id="hb-open" href="$hburl" target="_blank" rel="noopener">$T{open}</a>
+  <div id="hb-btnwrap">$btn</div>
 </div>
 
 <script>
