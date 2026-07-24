@@ -233,6 +233,12 @@ refresh_nodesource_key() {
     fi
 }
 
+# Aktuell in einer Sources-Liste eingetragene NodeSource-Major-Version (oder leer).
+current_nodesource_major() {
+    grep -rhoE 'deb\.nodesource\.com/node_[0-9]+\.x' /etc/apt/sources.list /etc/apt/sources.list.d/ 2>/dev/null \
+        | grep -oE '[0-9]+' | head -1
+}
+
 ensure_nodesource_repo() {
     local major="$1"
     local want="deb [signed-by=$NODESOURCE_KEYRING] https://deb.nodesource.com/node_${major}.x nodistro main"
@@ -260,9 +266,17 @@ nodesource_node_menu() {
     local c; read -rp "Auswahl: " c
     case "$c" in
         1)
-            local major="$rec"
-            read -rp "Node-Major-Version [${rec:-z.B. 22}]: " major
-            [ -z "$major" ] && major="$rec"
+            local existing default_major major
+            existing=$(current_nodesource_major)
+            if [ -n "$existing" ]; then
+                echo "Aktuell eingetragene NodeSource-Liste: node $existing"
+                default_major="$existing"
+            else
+                echo "Hinweis: keine NodeSource-Liste vorhanden - es wird eine neue angelegt."
+                default_major="$rec"
+            fi
+            read -rp "Node-Major-Version [${default_major:-z.B. 22}]: " major
+            [ -z "$major" ] && major="$default_major"
             if ! [[ "$major" =~ ^[0-9]+$ ]]; then
                 echo "Ungueltige Version."
                 return
