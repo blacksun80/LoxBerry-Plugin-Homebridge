@@ -206,7 +206,12 @@ if [ "$NODE_CHANGED" -eq 0 ] \
 else
     echo "Installiere/aktualisiere Homebridge + Config UI X ..."
     NPM_INSTALL_LOG="$HB_RUNTIME_DIR/npm-install.log"
+    # Eigener npm-Cache in der Runtime (loxberry-owned), damit der ggf. mit
+    # root-eigenen Dateien vergiftete Shared-Cache /opt/loxberry/.npm umgangen wird.
+    NPM_CACHE_DIR="$HB_RUNTIME_DIR/.npm-cache"
+    mkdir -p "$NPM_CACHE_DIR"
     "$LOCAL_NPM" install -g --prefix "$HB_NPM_GLOBAL" \
+        --cache "$NPM_CACHE_DIR" \
         --no-audit --no-fund --loglevel=http \
         homebridge homebridge-config-ui-x > "$NPM_INSTALL_LOG" 2>&1 &
     NPM_PID=$!
