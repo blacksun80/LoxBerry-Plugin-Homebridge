@@ -25,35 +25,51 @@ HB_RUNTIME_DIR="$PDATA/homebridge_runtime"
 HB_NODE_DIR="$HB_RUNTIME_DIR/nodejs"
 HB_NPM_GLOBAL="$HB_RUNTIME_DIR/npm-global"
 
+# Ziel des isolierten Node-Binaries, um es in der Anzeige markieren zu koennen.
+ISO_NODE_REAL=$(readlink -f "$HB_NODE_DIR/bin/node" 2>/dev/null)
+
+# Zeigt Version + ggf. Symlink-Ziel eines node-Binaries an; markiert, wenn es
+# in Wahrheit auf die isolierte Runtime zeigt.
+show_node() {
+    local label="$1" p="$2" real ver extra=""
+    if [ ! -e "$p" ]; then
+        echo "$label: nicht vorhanden"
+        return
+    fi
+    real=$(readlink -f "$p" 2>/dev/null)
+    ver=$("$p" -v 2>/dev/null)
+    if [ -z "$ver" ]; then
+        echo "$label: <WARNING> vorhanden, aber nicht ausfuehrbar"
+        return
+    fi
+    [ -L "$p" ] && extra=" -> $real"
+    [ -n "$ISO_NODE_REAL" ] && [ "$real" = "$ISO_NODE_REAL" ] && extra="$extra (= isolierte Runtime!)"
+    echo "$label: $ver$extra"
+}
+
 echo "============================================================"
 echo "System-Info"
 echo "============================================================"
 HW_MODEL=$(tr -d '\0' < /proc/device-tree/model 2>/dev/null)
+if [ -z "$HW_MODEL" ]; then
+    HW_MODEL=$(printf '%s %s' "$(cat /sys/class/dmi/id/sys_vendor 2>/dev/null)" "$(cat /sys/class/dmi/id/product_name 2>/dev/null)")
+    HW_MODEL=$(echo "$HW_MODEL" | sed 's/^ *//; s/ *$//')
+fi
 [ -r /etc/os-release ] && . /etc/os-release
 echo "Geraet:      ${HW_MODEL:-unbekannt}"
-echo "OS:          ${PRETTY_NAME:-unbekannt} (${VERSION_CODENAME:-?})"
+echo "OS:          ${PRETTY_NAME:-unbekannt}"
 echo "Architektur: $(uname -m)"
 
 echo ""
 echo "============================================================"
-echo "Schritt 1: System-Node/npm pruefen (nur Anzeige)"
+echo "Schritt 1: Node/npm-Uebersicht (nur Anzeige)"
 echo "============================================================"
 
-# System-Node/npm wird nur angezeigt - Homebridge nutzt es nicht (laeuft im
-# isolierten Node). Keine automatische apt-Reparatur.
-SYS_NODE_VERSION=""
-SYS_NPM_VERSION=""
-if command -v node >/dev/null 2>&1 && node -v >/dev/null 2>&1 \
-   && command -v npm >/dev/null 2>&1 && npm -v >/dev/null 2>&1; then
-    SYS_NODE_VERSION=$(node -v 2>/dev/null)
-    SYS_NPM_VERSION=$(npm -v 2>/dev/null)
-    echo "System-Node: $SYS_NODE_VERSION / System-npm: $SYS_NPM_VERSION"
-    echo "Pfad: $(command -v node)"
-elif command -v node >/dev/null 2>&1 || command -v npm >/dev/null 2>&1; then
-    echo "<WARNING> System-Node/npm vorhanden, aber beschaedigt (node -v / npm -v schlaegt fehl)."
-else
-    echo "<INFO> Kein System-Node/npm vorhanden (fuer Homebridge nicht noetig)."
-fi
+# Explizit die bekannten System-Node-Pfade zeigen (nicht PATH-basiert, sonst
+# wird ein /usr/local-Symlink auf die isolierte Runtime faelschlich als
+# System-Node ausgegeben). LB2/LB3: /usr/bin (NodeSource); LB4: /usr/local/bin.
+show_node "System-Node /usr/bin/node      " /usr/bin/node
+show_node "System-Node /usr/local/bin/node" /usr/local/bin/node
 
 echo ""
 echo "============================================================"
@@ -104,10 +120,11 @@ echo ""
 echo "============================================================"
 echo "Zusammenfassung"
 echo "============================================================"
-echo "Geraet:             ${HW_MODEL:-unbekannt}"
-echo "OS:                 ${PRETTY_NAME:-unbekannt} (${VERSION_CODENAME:-?}) / $(uname -m)"
-echo "System-Node:        ${SYS_NODE_VERSION:-n/a} / npm: ${SYS_NPM_VERSION:-n/a}"
-echo "Homebridge-Node:    $("$HB_NODE_DIR/bin/node" -v 2>/dev/null || echo n/a) / npm: $("$HB_NODE_DIR/bin/npm" -v 2>/dev/null || echo n/a)"
+echo "Geraet:            ${HW_MODEL:-unbekannt}"
+echo "OS:                ${PRETTY_NAME:-unbekannt} / $(uname -m)"
+show_node "System-Node /usr/bin/node      " /usr/bin/node
+show_node "System-Node /usr/local/bin/node" /usr/local/bin/node
+echo "Homebridge-Node (isoliert): $("$HB_NODE_DIR/bin/node" -v 2>/dev/null || echo n/a) / npm $("$HB_NODE_DIR/bin/npm" -v 2>/dev/null || echo n/a)"
 echo "Homebridge-Storage: $HB_STORAGE_DIR"
 echo "Fertig."
 

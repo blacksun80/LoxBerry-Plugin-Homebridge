@@ -36,9 +36,13 @@ echo "============================================================"
 echo "System-Info"
 echo "============================================================"
 HW_MODEL=$(tr -d '\0' < /proc/device-tree/model 2>/dev/null)
+if [ -z "$HW_MODEL" ]; then
+    HW_MODEL=$(printf '%s %s' "$(cat /sys/class/dmi/id/sys_vendor 2>/dev/null)" "$(cat /sys/class/dmi/id/product_name 2>/dev/null)")
+    HW_MODEL=$(echo "$HW_MODEL" | sed 's/^ *//; s/ *$//')
+fi
 [ -r /etc/os-release ] && . /etc/os-release
 echo "Geraet:      ${HW_MODEL:-unbekannt}"
-echo "OS:          ${PRETTY_NAME:-unbekannt} (${VERSION_CODENAME:-?})"
+echo "OS:          ${PRETTY_NAME:-unbekannt}"
 echo "Architektur: $(uname -m)"
 
 echo ""
