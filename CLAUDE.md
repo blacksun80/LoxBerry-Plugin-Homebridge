@@ -111,15 +111,16 @@ gelöschtes Node zeigt.
 Wo das System-Node liegt und woher es kommt, ist je LoxBerry-Version anders – entscheidend für
 Erkennung/Warnung und dafür, was ein Repair **niemals** anfassen darf:
 
-- **LB2 / Debian 10 (Buster):** System-Node via **NodeSource** (node 12), apt/dpkg, unter
+- **LB2 / Debian 10 (Buster):** NodeSource **node 12**, apt/dpkg, unter **`/usr/bin/node`**.
+  LoxBerry nutzt es (+ yarn).
+- **LB3 / Debian 11 (Bullseye):** NodeSource **node 18** (`setup_18.x`), apt/dpkg, unter
   **`/usr/bin/node`**. LoxBerry nutzt es (+ yarn).
-- **LB3 / Debian 11–12 (Bullseye/Bookworm):** System-Node unter **`/usr/bin/node`** (dpkg) –
-  NodeSource (node 18) wo verfügbar, sonst **Debian-eigenes** Node (z.B. **v12.22.12** auf
-  **armv7l**, weil NodeSource dort keine neueren Builds mehr hat). LoxBerry nutzt es (+ yarn).
-  **Die genaue Version variiert je Arch – invariant ist nur der Pfad `/usr/bin`.**
-- **LB4 / Debian 13 (Trixie):** LoxBerry bündelt ein **eigenes Node (v26) unter
+- **LB4 / Debian 12–13 (Bookworm/Trixie):** LoxBerry bündelt ein **eigenes Node (v26) unter
   `/usr/local/bin/node`** – Besitzer `loxberry:loxberry`, **kein** dpkg-Paket, **keine**
   NodeSource-Liste. Ins Image gebacken, nicht via apt.
+
+**Bookworm/Trixie = LB4, nicht LB3** (LB3 ist Bullseye). Ein manuell per `apt-get install nodejs`
+nachgeschobenes Debian-Node (z.B. v12 auf Bullseye) ist NICHT der LoxBerry-Standard.
 
 Belege: `update_v2.0.0.pl` (`node_12.x buster` + `apt_install nodejs yarn`),
 `updatereboot_v3.0.0.pl` (`setup_18.x` + `apt_install nodejs yarn`); `packages11.txt` listet
