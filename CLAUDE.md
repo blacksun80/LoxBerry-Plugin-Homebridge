@@ -106,6 +106,30 @@ Beim Übergang alt→neu registriert postroot-Schritt 5 den Dienst **immer neu**
 install unter isoliertem Node statt nur `restart`), damit die Unit nicht mehr auf ein fremdes/
 gelöschtes Node zeigt.
 
+## Node pro LoxBerry-Version (verifiziert)
+
+Wo das System-Node liegt und woher es kommt, ist je LoxBerry-Version anders – entscheidend für
+Erkennung/Warnung und dafür, was ein Repair **niemals** anfassen darf:
+
+- **LB2 / Debian 10 (Buster):** System-Node via **NodeSource** (node 12), apt/dpkg, unter
+  **`/usr/bin/node`**. LoxBerry nutzt es (+ yarn).
+- **LB3 / Debian 11–12 (Bullseye/Bookworm):** System-Node via **NodeSource** (node 18), apt/dpkg,
+  unter **`/usr/bin/node`**. LoxBerry nutzt es (+ yarn).
+- **LB4 / Debian 13 (Trixie):** LoxBerry bündelt ein **eigenes Node (v26) unter
+  `/usr/local/bin/node`** – Besitzer `loxberry:loxberry`, **kein** dpkg-Paket, **keine**
+  NodeSource-Liste. Ins Image gebacken, nicht via apt.
+
+Belege: `update_v2.0.0.pl` (`node_12.x buster` + `apt_install nodejs yarn`),
+`updatereboot_v3.0.0.pl` (`setup_18.x` + `apt_install nodejs yarn`); `packages11.txt` listet
+`ii nodejs 18.x…nodesource`; LoxBerrys eigene `node-rpc.cgi` hat Shebang `#!/usr/bin/node`;
+frisches LB4-Trixie zeigt `/usr/local/bin/node` v26 (loxberry-owned, kein dpkg, keine Source-Liste).
+
+**Konsequenz:** `/usr/local/bin/node` ist auf LB4 **LoxBerrys eigenes Node** und darf NICHT gelöscht
+werden (Besitzer/dpkg-Status sind identisch zu einer „Fremd-Leiche" – nicht unterscheidbar). Ein
+legitimes System-Node liegt auf LB2/LB3 in `/usr/bin` (dpkg). Deshalb: System-Node nur **anzeigen +
+warnen**, nie anfassen – kein apt-purge, keine NodeSource-Liste löschen, nie `/usr/bin`. Ein Repair
+räumt nur `/usr/local`-Homebridge-Reste + tote Symlinks + die isolierte Runtime.
+
 ## Konventionen / Fallstricke
 
 - **Zeilenenden: nur LF.** `.gitattributes` erzwingt das. `.sh` mit CRLF brechen auf Linux.

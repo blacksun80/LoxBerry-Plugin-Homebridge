@@ -46,14 +46,13 @@ dort werden Plugins installiert, Zubehör eingerichtet und die Bridge mit HomeKi
 
 Ein Plugin-Update installiert eine ggf. neuere Homebridge-/Config-UI-X-Version. Die bestehende
 Konfiguration inklusive aller HomeKit-Pairings bleibt dabei erhalten – sie wird vor dem Update
-gesichert und anschließend zurückgespielt (es werden die letzten 5 Sicherungen aufbewahrt unter
-`data/system/tmp/homebridge_config_backup`).
+gesichert und anschließend zurückgespielt (eine Sicherung unter
+`data/system/tmp/homebridge_backup`, die bei jedem Update erneuert wird).
 
 ## Deinstallation
 
-Beim Entfernen des Plugins werden der Dienst, die isolierte Node-Runtime und die Konfigurations-
-Sicherungen aufgeräumt. Das apt-System-Node bleibt bewusst erhalten, da es von anderen
-Komponenten genutzt werden könnte.
+Beim Entfernen des Plugins werden der Dienst, die isolierte Node-Runtime und die
+Sicherungen aufgeräumt. Ein vorhandenes System-Node wird nicht angefasst.
 
 ## Hinweise zur Technik
 

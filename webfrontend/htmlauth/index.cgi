@@ -1,142 +1,99 @@
 #!/usr/bin/perl
 
-# Copyright 2016 Michael Schlenstedt, michael@loxberry.de
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# Homebridge-Plugin fuer LoxBerry - Webfrontend.
+# Basiert auf der Struktur des LoxBerry-SamplePlugin (Michael Schlenstedt).
+# Zeigt an, ob der Homebridge-Dienst laeuft, und verlinkt die Config-UI.
 
-# Modifications copyright (C) 2017 Muto
+use strict;
+use warnings;
+use CGI;
+use LoxBerry::System;
+use LoxBerry::Web;
 
-##########################################################################
-# Modules
-##########################################################################
+my $cgi = CGI->new();
 
-use CGI::Carp qw(fatalsToBrowser);
-use CGI qw/:standard/;
-use Config::Simple;
-use File::HomeDir;
-use Cwd 'abs_path';
-#use warnings;
-#use strict;
-#no strict "refs"; # we need it for template system
-
-##########################################################################
-# Variables
-##########################################################################
-
-our $cfg;
-our $lang;
-our $template_title;
-our $help;
-our @help;
-our $helptext;
-our $helplink;
-our $installfolder;
-our $version;
-my  $home = File::HomeDir->my_home;
-our $psubfolder;
-our $loxberryip;
-#our $habridgestatus;
-our $do;
-
-##########################################################################
-# Read Settings
-##########################################################################
-
-# Version of this script
-$version = "0.0.1";
-
-# Figure out in which subfolder we are installed
-$psubfolder = abs_path($0);
-$psubfolder =~ s/(.*)\/(.*)\/(.*)$/$2/g;
-
-$cfg             = new Config::Simple("$home/config/system/general.cfg");
-$installfolder   = $cfg->param("BASE.INSTALLFOLDER");
-$lang            = $cfg->param("BASE.LANG");
-
-# Init Language
-# Clean up lang variable
-$lang =~ tr/a-z//cd;
-$lang = substr($lang,0,2);
-
-# If there's no file in our language, use german as default
-if (!-e "$installfolder/templates/plugins/$psubfolder/$lang/settings.html") {
-	$lang = "de";
+# Zustand des systemd-Dienstes ermitteln (active|inactive|failed|unknown).
+sub hb_status {
+    my $s = `systemctl is-active homebridge.service 2>/dev/null`;
+    chomp $s;
+    $s = 'unknown' if !defined $s || $s eq '';
+    return $s;
 }
 
-##########################################################################
-# Main program
-##########################################################################
-
-print "Content-Type: text/html\n\n";
-
-# Should Homebridge be started
-if ( param('do') ) {
-	$do = quotemeta( param('do') );
-	if ( $do eq "start") {
-		#system ("$installfolder/system/daemons/plugins/$psubfolder start");
-	}
-	if ( $do eq "stop") {
-		#system ("$installfolder/system/daemons/plugins/$psubfolder stop");
-	}
-	if ( $do eq "restart") {
-		#system ("$installfolder/system/daemons/plugins/$psubfolder restart");
-	}
+# AJAX-Endpunkt: nur den Status als Text ausgeben (fuer die Selbst-Aktualisierung).
+if ( defined $cgi->param('ajax') && $cgi->param('ajax') eq 'status' ) {
+    print "Content-Type: text/plain; charset=utf-8\n\n";
+    print hb_status();
+    exit;
 }
 
-# Vars for template
-$template_title = "LoxBerry: Homebridge Plugin";
-$urlhomebridge = "$ENV{'SERVER_NAME'}".":8082";
-#$habridgestatus = qx($installfolder/system/daemons/plugins/$psubfolder status);
+# Sprache + Texte.
+my $lang = LoxBerry::System::lblanguage() || 'en';
+my %T = $lang eq 'de'
+    ? ( title  => 'Homebridge',
+        running => 'Homebridge laeuft',
+        stopped => 'Homebridge laeuft nicht',
+        unknown => 'Status unbekannt',
+        open    => 'Homebridge-Oberflaeche oeffnen',
+        state   => 'Status' )
+    : ( title  => 'Homebridge',
+        running => 'Homebridge is running',
+        stopped => 'Homebridge is not running',
+        unknown => 'Status unknown',
+        open    => 'Open Homebridge interface',
+        state   => 'Status' );
 
-# Print Template
+# Host fuer den 8082-Link (Port des Aufrufs abschneiden).
+my $host = $ENV{'HTTP_HOST'} || $ENV{'SERVER_NAME'} || 'localhost';
+$host =~ s/:\d+$//;
+my $hburl = "http://$host:8082";
 
-# Create Help page
-$helplink = "https://loxwiki.atlassian.net/wiki/spaces/LOXBERRY/pages/1661304839/Homebridge";
-open(F,"$installfolder/templates/plugins/$psubfolder/$lang/help.html") || die "Missing template plugins/$psubfolder/$lang/help.html";
-  @help = <F>;
-  foreach (@help)
-  {
-    s/[\n\r]/ /g;
-    $_ =~ s/<!--\$(.*?)-->/${$1}/g;
-    $helptext = $helptext . $_;
+my $status = hb_status();
+
+our $template_title = $T{title};
+my $helplink = "https://wiki.loxberry.de/plugins/homebridge/start";
+
+LoxBerry::Web::lbheader($T{title}, $helplink, "help.html");
+
+print <<"HTML";
+<style>
+  #hb-card { max-width: 480px; margin: 1em auto; padding: 1.2em; border-radius: 10px;
+             border: 1px solid rgba(128,128,128,0.4); text-align: center; font-size: 1.1em; }
+  #hb-dot { display: inline-block; width: 14px; height: 14px; border-radius: 50%;
+            background: #999; margin-right: 8px; vertical-align: middle; }
+  #hb-dot.ok  { background: #3fae4b; }
+  #hb-dot.bad { background: #d33; }
+  #hb-open { display: inline-block; margin-top: 1em; padding: 0.6em 1.2em; border-radius: 8px;
+             background: #0a7a5a; color: #fff; text-decoration: none; }
+</style>
+
+<div id="hb-card">
+  <div><span id="hb-dot"></span><span id="hb-state">...</span></div>
+  <a id="hb-open" href="$hburl" target="_blank" rel="noopener">$T{open}</a>
+</div>
+
+<script>
+(function(){
+  var texts = { active:"$T{running}", inactive:"$T{stopped}",
+                failed:"$T{stopped}", unknown:"$T{unknown}" };
+  function render(s){
+    var dot = document.getElementById('hb-dot');
+    var st  = document.getElementById('hb-state');
+    st.textContent = texts[s] || ("$T{state}: " + s);
+    dot.className = (s === 'active') ? 'ok' : (s === 'unknown' ? '' : 'bad');
   }
-close(F);
-
-# Header
-open(F,"$installfolder/templates/system/$lang/header.html") || die "Missing template system/$lang/header.html";
-  while (<F>)
-  {
-    $_ =~ s/<!--\$(.*?)-->/${$1}/g;
-    print $_;
+  function poll(){
+    fetch('index.cgi?ajax=status', { cache: 'no-store' })
+      .then(function(r){ return r.text(); })
+      .then(function(t){ render(t.trim()); })
+      .catch(function(){ /* Netzwerkfehler ignorieren, naechster Versuch folgt */ });
   }
-close(F);
+  render("$status");
+  poll();
+  setInterval(poll, 5000);
+})();
+</script>
+HTML
 
-# Main
-open(F,"$installfolder/templates/plugins/$psubfolder/$lang/settings.html") || die "Missing template plugins/$psubfolder/$lang/settings.html";
-while (<F>)
-  {
-    $_ =~ s/<!--\$(.*?)-->/${$1}/g;
-    print $_;
-  }
-close(F);
-
-# Footer
-open(F,"$installfolder/templates/system/$lang/footer.html") || die "Missing template system/$lang/footer.html";
-  while (<F>)
-  {
-    $_ =~ s/<!--\$(.*?)-->/${$1}/g;
-    print $_;
-  }
-close(F);
-
+LoxBerry::Web::lbfooter();
 exit;

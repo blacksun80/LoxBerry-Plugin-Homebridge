@@ -33,6 +33,16 @@ RUNTIME_BACKUP="$BACKUP_ROOT/runtime"
 mkdir -p "$HB_STORAGE_DIR" "$HB_RUNTIME_DIR" "$HB_NPM_GLOBAL"
 
 echo "============================================================"
+echo "System-Info"
+echo "============================================================"
+HW_MODEL=$(tr -d '\0' < /proc/device-tree/model 2>/dev/null)
+[ -r /etc/os-release ] && . /etc/os-release
+echo "Geraet:      ${HW_MODEL:-unbekannt}"
+echo "OS:          ${PRETTY_NAME:-unbekannt} (${VERSION_CODENAME:-?})"
+echo "Architektur: $(uname -m)"
+
+echo ""
+echo "============================================================"
 echo "Schritt 1: Config zurueckholen"
 echo "============================================================"
 

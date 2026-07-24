@@ -26,37 +26,33 @@ HB_NODE_DIR="$HB_RUNTIME_DIR/nodejs"
 HB_NPM_GLOBAL="$HB_RUNTIME_DIR/npm-global"
 
 echo "============================================================"
-echo "Schritt 1: System-Node/npm pruefen"
+echo "System-Info"
+echo "============================================================"
+HW_MODEL=$(tr -d '\0' < /proc/device-tree/model 2>/dev/null)
+[ -r /etc/os-release ] && . /etc/os-release
+echo "Geraet:      ${HW_MODEL:-unbekannt}"
+echo "OS:          ${PRETTY_NAME:-unbekannt} (${VERSION_CODENAME:-?})"
+echo "Architektur: $(uname -m)"
+
+echo ""
+echo "============================================================"
+echo "Schritt 1: System-Node/npm pruefen (nur Anzeige)"
 echo "============================================================"
 
-check_system_node() {
-    if command -v node >/dev/null 2>&1 && command -v npm >/dev/null 2>&1; then
-        SYS_NODE_VERSION=$(node -v 2>/dev/null) || return 1
-        SYS_NPM_VERSION=$(npm -v 2>/dev/null) || return 1
-        [ -n "$SYS_NODE_VERSION" ] && [ -n "$SYS_NPM_VERSION" ]
-        return $?
-    fi
-    return 1
-}
-
-NODESOURCE_REPO_FOUND=""
-if grep -rl "deb.nodesource.com" /etc/apt/sources.list /etc/apt/sources.list.d/ 2>/dev/null | grep -q .; then
-    NODESOURCE_REPO_FOUND=1
-fi
-
-if check_system_node; then
-    echo "System-Node ($SYS_NODE_VERSION) / System-npm ($SYS_NPM_VERSION) vorhanden."
-elif [ -n "$NODESOURCE_REPO_FOUND" ]; then
-    echo "<INFO> System-Node/npm fehlt, NodeSource-Repo gefunden - automatische Reparatur wird uebersprungen."
+# System-Node/npm wird nur angezeigt - Homebridge nutzt es nicht (laeuft im
+# isolierten Node). Keine automatische apt-Reparatur.
+SYS_NODE_VERSION=""
+SYS_NPM_VERSION=""
+if command -v node >/dev/null 2>&1 && node -v >/dev/null 2>&1 \
+   && command -v npm >/dev/null 2>&1 && npm -v >/dev/null 2>&1; then
+    SYS_NODE_VERSION=$(node -v 2>/dev/null)
+    SYS_NPM_VERSION=$(npm -v 2>/dev/null)
+    echo "System-Node: $SYS_NODE_VERSION / System-npm: $SYS_NPM_VERSION"
+    echo "Pfad: $(command -v node)"
+elif command -v node >/dev/null 2>&1 || command -v npm >/dev/null 2>&1; then
+    echo "<WARNING> System-Node/npm vorhanden, aber beschaedigt (node -v / npm -v schlaegt fehl)."
 else
-    echo "System-Node/npm fehlt - versuche Reparatur via apt-get ..."
-    apt-get update || echo "<INFO> apt-get update fehlgeschlagen."
-    apt-get install -y --reinstall nodejs npm || apt-get install -y nodejs npm || true
-    if check_system_node; then
-        echo "<OK> System-Node/npm repariert."
-    else
-        echo "<INFO> System-Node/npm konnte nicht repariert werden."
-    fi
+    echo "<INFO> Kein System-Node/npm vorhanden (fuer Homebridge nicht noetig)."
 fi
 
 echo ""
@@ -108,8 +104,10 @@ echo ""
 echo "============================================================"
 echo "Zusammenfassung"
 echo "============================================================"
-echo "System-Node:       ${SYS_NODE_VERSION:-n/a}"
-echo "Homebridge-Node:   $("$HB_NODE_DIR/bin/node" -v)"
+echo "Geraet:             ${HW_MODEL:-unbekannt}"
+echo "OS:                 ${PRETTY_NAME:-unbekannt} (${VERSION_CODENAME:-?}) / $(uname -m)"
+echo "System-Node:        ${SYS_NODE_VERSION:-n/a} / npm: ${SYS_NPM_VERSION:-n/a}"
+echo "Homebridge-Node:    $("$HB_NODE_DIR/bin/node" -v 2>/dev/null || echo n/a) / npm: $("$HB_NODE_DIR/bin/npm" -v 2>/dev/null || echo n/a)"
 echo "Homebridge-Storage: $HB_STORAGE_DIR"
 echo "Fertig."
 
