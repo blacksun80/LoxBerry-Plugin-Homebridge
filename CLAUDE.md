@@ -111,20 +111,27 @@ gelöschtes Node zeigt.
 Wo das System-Node liegt und woher es kommt, ist je LoxBerry-Version anders – entscheidend für
 Erkennung/Warnung und dafür, was ein Repair **niemals** anfassen darf:
 
-Verifiziert über die offiziellen Installer (`mschlenstedt/Loxberry_Installer`) und Dist-Upgrades:
+Der Node-Pfad haengt am **Install-Weg** (der sich mit der Basis änderte), NICHT an der LB-Nummer.
+Verifiziert über die Installer (`mschlenstedt/Loxberry_Installer`) + DietPi-Quelle:
 
-- **Debian 10 (Buster) = LB2:** NodeSource **node 12** → **`/usr/bin/node`**.
-- **Debian 11 (Bullseye) = LB3:** NodeSource **node 18** (`install_bullseye.sh`: `NODEJS_VERSION=18`,
-  `setup_18.x` + `apt install nodejs`) → **`/usr/bin/node`**.
-- **Debian 12 (Bookworm) = LB3:** Node über **DietPi** (`install_bookworm.sh`:
-  `dietpi-software install 9`, Software-ID 9 = Node.js) → **`/usr/bin/node`**.
-- **Debian 13 (Trixie) = LB4:** LoxBerry bündelt ein **eigenes Node (v26) unter
-  `/usr/local/bin/node`** (Besitzer `loxberry:loxberry`, kein dpkg, keine NodeSource-Liste) –
-  auf frischem Gerät verifiziert.
+- **Debian 10 (Buster) = LB2:** NodeSource **node 12** → **`/usr/bin/node`** (apt/dpkg).
+- **Debian 11 (Bullseye) = LB3:** NodeSource **node 18** (`install_bullseye.sh`: `setup_18.x` +
+  `apt install nodejs`) → **`/usr/bin/node`** (apt/dpkg).
+- **Debian 12 (Bookworm) = LB3** UND **Debian 13 (Trixie) = LB4:** Node über **DietPi**
+  (`dietpi-software install 9`) → **`/usr/local/bin/node`** (manuell installiertes Binary, KEIN dpkg,
+  KEINE NodeSource-Liste). Trixie am Gerät verifiziert (v26, loxberry-owned).
 
-**Invariante:** LB2/LB3 (Buster/Bullseye/Bookworm) → System-Node in **`/usr/bin`**; LB4 (Trixie) →
-gebündelt in **`/usr/local`**. Bookworm **und** Bullseye sind beide LB3. Ein manuell per
-`apt-get install nodejs` nachgeschobenes Node (z.B. v12 auf Bullseye) ist NICHT der Standard.
+DietPi installiert Node.js nach `/usr/local/bin/node` (Belege in `MichaIng/DietPi` dietpi-software:
+`ExecStart=/usr/local/bin/node …`, Uninstall `rm /usr/local/bin/node`, Migration weg von der alten
+`nodesource_nodejs.list`).
+
+**Invariante (nach Install-Weg):**
+- **Buster/Bullseye** (NodeSource-apt) → System-Node in **`/usr/bin`**.
+- **Bookworm/Trixie** (DietPi) → System-Node in **`/usr/local`**.
+
+Damit ist auf **Bookworm UND Trixie** `/usr/local/bin/node` das **legitime** System-Node → NICHT
+löschen. Nur auf Buster/Bullseye wäre ein `/usr/local`-Node fremd (System-Node dort in `/usr/bin`).
+Ein manuell per `apt-get install nodejs` nachgeschobenes Node ist nie der Standard.
 
 Belege: `update_v2.0.0.pl` (`node_12.x buster` + `apt_install nodejs yarn`),
 `updatereboot_v3.0.0.pl` (`setup_18.x` + `apt_install nodejs yarn`); `packages11.txt` listet
