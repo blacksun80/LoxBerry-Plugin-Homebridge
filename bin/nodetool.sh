@@ -267,14 +267,32 @@ sources_check_menu() {
         echo "  (kein NodeSource-Eintrag vorhanden)"
         local rec; rec=$(recommended_nodesource_major)
         if [ -n "$rec" ]; then
-            if confirm "Empfohlenen NodeSource-Eintrag (node $rec) hinzufuegen?"; then
-                refresh_nodesource_key
-                ensure_nodesource_repo "$rec"
-                apt-get update
-            fi
+            echo "Empfohlen fuer ${CODENAME}: node $rec"
         else
-            echo "  Fuer ${CODENAME:-?} ist NodeSource nicht der Standard (DietPi) - kein Eintrag empfohlen."
+            echo "Hinweis: Auf ${CODENAME:-?} nutzt LoxBerry normalerweise DietPi, NICHT NodeSource."
         fi
+        local major
+        read -rp "NodeSource-Eintrag hinzufuegen? Node-Major [Enter=${rec:-abbrechen}]: " major
+        [ -z "$major" ] && major="$rec"
+        if [ -z "$major" ]; then
+            echo "Abgebrochen."
+            return
+        fi
+        if ! [[ "$major" =~ ^[0-9]+$ ]]; then
+            echo "Ungueltige Version."
+            return
+        fi
+        if [ -n "$rec" ] && [ "$major" != "$rec" ]; then
+            echo "<WARNUNG> Fuer ${CODENAME} ist node $rec vorgesehen, du waehlst node $major."
+            confirm "Trotzdem eintragen?" || return
+        fi
+        if ! nodesource_arch_plausible "$major"; then
+            echo "<WARNUNG> Fuer Architektur $NODE_ARCH gibt es fuer node $major moeglicherweise KEINE Builds."
+            confirm "Trotzdem eintragen?" || return
+        fi
+        refresh_nodesource_key
+        ensure_nodesource_repo "$major"
+        apt-get update
     fi
 }
 
@@ -282,19 +300,24 @@ sources_check_menu() {
 # 6) Abgelaufene/fehlende Repo-Keys erneuern
 # ============================================================
 renew_keys_menu() {
-    echo "--- apt-get update (Keys pruefen) ---"
+    echo "--- apt-get update (Signaturen/Keys pruefen) ---"
+    local PROBLEM_RE='NO_PUBKEY|EXPKEY|KEYEXPIRED|no valid OpenPGP|couldn.?t be verified|not be verified|is not signed|invalid signature|^Err:|^W: (GPG|An error)'
     local out
     out=$(apt-get update 2>&1)
     echo "$out"
-    # Fehlende/abgelaufene Keys erkennen.
-    local bad
-    bad=$(echo "$out" | grep -oiE '(NO_PUBKEY|EXPKEY|KEYEXPIRED) [0-9A-F]+' | awk '{print $2}' | sort -u)
-    if [ -z "$bad" ]; then
-        echo "Keine fehlenden/abgelaufenen Keys gefunden."
+    # Signatur-/Key-Probleme breit erkennen (nicht nur NO_PUBKEY/EXPKEY -
+    # ein korruptes/fehlendes signed-by-Keyring meldet apt anders).
+    local problems
+    problems=$(echo "$out" | grep -iE "$PROBLEM_RE")
+    if [ -z "$problems" ]; then
+        echo "Keine Signatur-/Key-Probleme gefunden."
         return
     fi
-    echo "Problematische Key-IDs: $bad"
-    # Bekannte Repos gezielt auffrischen.
+    echo ""
+    echo "Gefundene Probleme:"
+    echo "$problems"
+    echo ""
+    # Bekannte, von LoxBerry gesetzte Repos gezielt auffrischen.
     if grep -rliE 'nodesource' /etc/apt/sources.list.d/ >/dev/null 2>&1; then
         echo "-> NodeSource-Key auffrischen ..."
         refresh_nodesource_key
@@ -305,11 +328,16 @@ renew_keys_menu() {
             && chmod 0644 "$YARN_KEYRING" && echo "Yarn-Key aktualisiert." \
             || echo "<WARNUNG> Yarn-Key konnte nicht geladen werden."
     fi
+    # Uebrige, unbekannte fehlende Keys per ID melden.
+    local missing
+    missing=$(echo "$out" | grep -oiE 'NO_PUBKEY [0-9A-F]+' | awk '{print $2}' | sort -u)
+    [ -n "$missing" ] && echo "Fehlende Key-IDs (unbekannte Repos, ggf. manuell): $missing"
+    echo ""
     echo "--- erneute Pruefung ---"
-    if apt-get update 2>&1 | grep -qiE 'NO_PUBKEY|EXPKEY|KEYEXPIRED'; then
-        echo "<WARNUNG> Es bleiben Key-Probleme. Betroffene Repos manuell pruefen (Key-IDs oben)."
+    if apt-get update 2>&1 | grep -qiE "$PROBLEM_RE"; then
+        echo "<WARNUNG> Es bleiben Probleme - betroffene Repos manuell pruefen."
     else
-        echo "OK - keine Key-Probleme mehr."
+        echo "OK - keine Signatur-/Key-Probleme mehr."
     fi
 }
 
@@ -339,6 +367,76 @@ dietpi_node_menu() {
 }
 
 # ============================================================
+# 8) Manuell installiertes Node/npm unter /usr/local entfernen
+# ============================================================
+remove_local_node_menu() {
+    echo "--- Manuell installiertes Node/npm unter /usr/local ---"
+    local found=0 p
+    for p in /usr/local/bin/node /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack; do
+        if [ -e "$p" ] || [ -L "$p" ]; then echo "  $p"; found=1; fi
+    done
+    if [ -d /usr/local/lib/node_modules ]; then
+        echo "  /usr/local/lib/node_modules/  ($(ls -1 /usr/local/lib/node_modules 2>/dev/null | tr '\n' ' '))"
+        found=1
+    fi
+    [ -e /usr/local/include/node ] && { echo "  /usr/local/include/node"; found=1; }
+    if [ "$found" -eq 0 ]; then
+        echo "  Nichts gefunden - kein /usr/local-Node vorhanden."
+        return
+    fi
+    if [ "$IS_DIETPI" -eq 1 ]; then
+        echo ""
+        echo "<WARNUNG> DietPi erkannt! Auf Bookworm/Trixie ist /usr/local/bin/node das"
+        echo "          LEGITIME System-Node (von DietPi verwaltet). Zum Reparieren besser"
+        echo "          Menuepunkt 7 (DietPi reinstall) nutzen, statt hier zu loeschen."
+    fi
+    echo ""
+    confirm "Diese /usr/local-Node/npm-Dateien wirklich LOESCHEN?" || return
+    for p in /usr/local/bin/node /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack; do
+        if [ -e "$p" ] || [ -L "$p" ]; then rm -f "$p" && echo "entfernt: $p"; fi
+    done
+    [ -d /usr/local/lib/node_modules ] && rm -rf /usr/local/lib/node_modules && echo "entfernt: /usr/local/lib/node_modules"
+    [ -e /usr/local/include/node ] && rm -rf /usr/local/include/node && echo "entfernt: /usr/local/include/node"
+    echo "Fertig."
+}
+
+# ============================================================
+# 9) APT-Repo-Dateien verwalten (anzeigen/loeschen)
+# ============================================================
+sources_manage_menu() {
+    echo "--- Repo-Dateien in /etc/apt/sources.list.d/ ---"
+    shopt -s nullglob
+    local files=(/etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources)
+    shopt -u nullglob
+    if [ "${#files[@]}" -eq 0 ]; then
+        echo "  (keine zusaetzlichen Repo-Dateien)"
+        echo "  (Die Debian-Basis-Repos in /etc/apt/sources.list werden hier bewusst nicht"
+        echo "   angeboten - ein Loeschen wuerde apt lahmlegen.)"
+        return
+    fi
+    local i=1 f firstdeb
+    for f in "${files[@]}"; do
+        firstdeb=$(grep -m1 -iE '^\s*(deb |Types:|URIs:)' "$f" 2>/dev/null | sed 's/^ *//')
+        echo "  $i) $(basename "$f")   [${firstdeb:-leer}]"
+        i=$((i+1))
+    done
+    echo "  0) zurueck"
+    local c; read -rp "Datei-Nummer zum LOESCHEN (0 = zurueck): " c
+    if ! [[ "$c" =~ ^[0-9]+$ ]] || [ "$c" -lt 1 ] || [ "$c" -gt "${#files[@]}" ]; then
+        echo "Abgebrochen."
+        return
+    fi
+    local sel="${files[$((c-1))]}"
+    echo ""
+    echo "Inhalt von $sel:"
+    cat "$sel"
+    echo ""
+    confirm "Diese Repo-Datei wirklich loeschen?" || return
+    rm -f "$sel" && echo "geloescht: $sel"
+    echo "Hinweis: danach 'apt-get update' (z.B. via Menue 6) ausfuehren."
+}
+
+# ============================================================
 # Hauptmenue
 # ============================================================
 detect_system
@@ -355,6 +453,8 @@ while true; do
     echo " 5) NodeSource-Eintrag in Sources-Liste pruefen/hinzufuegen"
     echo " 6) Abgelaufene/fehlende Repo-Keys erneuern"
     echo " 7) Node via DietPi verwalten (Bookworm/Trixie / LB4)"
+    echo " 8) Manuell installiertes Node/npm unter /usr/local entfernen"
+    echo " 9) APT-Repo-Dateien verwalten (anzeigen/loeschen)"
     echo " 0) Beenden"
     echo "------------------------------------------------------------"
     read -rp "Auswahl: " CHOICE
@@ -367,6 +467,8 @@ while true; do
         5) sources_check_menu ;;
         6) renew_keys_menu ;;
         7) dietpi_node_menu ;;
+        8) remove_local_node_menu ;;
+        9) sources_manage_menu ;;
         0) echo "Beendet."; exit 0 ;;
         *) echo "Ungueltige Auswahl." ;;
     esac
