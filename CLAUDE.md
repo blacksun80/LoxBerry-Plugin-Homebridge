@@ -111,16 +111,21 @@ gelöschtes Node zeigt.
 Wo das System-Node liegt und woher es kommt, ist je LoxBerry-Version anders – entscheidend für
 Erkennung/Warnung und dafür, was ein Repair **niemals** anfassen darf:
 
-- **LB2 / Debian 10 (Buster):** NodeSource **node 12**, apt/dpkg, unter **`/usr/bin/node`**.
-  LoxBerry nutzt es (+ yarn).
-- **LB3 / Debian 11 (Bullseye):** NodeSource **node 18** (`setup_18.x`), apt/dpkg, unter
-  **`/usr/bin/node`**. LoxBerry nutzt es (+ yarn).
-- **LB4 / Debian 12–13 (Bookworm/Trixie):** LoxBerry bündelt ein **eigenes Node (v26) unter
-  `/usr/local/bin/node`** – Besitzer `loxberry:loxberry`, **kein** dpkg-Paket, **keine**
-  NodeSource-Liste. Ins Image gebacken, nicht via apt.
+Die Node-Lage hängt an der **Debian-Version**, nicht strikt an der LB-Nummer (die aktuelle
+LoxBerry läuft lt. `libs/pythonlib/.../core.py` auf Bullseye **und** Bookworm **und** Trixie):
 
-**Bookworm/Trixie = LB4, nicht LB3** (LB3 ist Bullseye). Ein manuell per `apt-get install nodejs`
-nachgeschobenes Debian-Node (z.B. v12 auf Bullseye) ist NICHT der LoxBerry-Standard.
+- **Debian 10 (Buster) = LB2:** NodeSource **node 12**, apt/dpkg, unter **`/usr/bin/node`**.
+- **Debian 11 (Bullseye) = LB3:** NodeSource **node 18** (`setup_18.x`), apt/dpkg, unter
+  **`/usr/bin/node`**.
+- **Debian 13 (Trixie):** LoxBerry bündelt ein **eigenes Node (v26) unter `/usr/local/bin/node`**
+  (Besitzer `loxberry:loxberry`, kein dpkg, keine NodeSource-Liste) – auf frischem Gerät verifiziert.
+- **Debian 12 (Bookworm):** LB-Zuordnung nicht aus dem Repo belegbar (kein Dist-Upgrade dahin);
+  Node-Lage **noch nicht am Gerät bestätigt**. Die Anzeige (`show_node` in postroot) zeigt sie direkt.
+
+Dist-Upgrade-Belege: `updatereboot_v2.0.0.pl` (Stretch→Buster), `updatereboot_v3.0.0.pl`
+(Buster→Bullseye). Bookworm/Trixie haben **kein** Dist-Upgrade-Skript (frische Images). Ein manuell
+per `apt-get install nodejs` nachgeschobenes Debian-Node (z.B. v12 auf Bullseye) ist NICHT der
+LoxBerry-Standard.
 
 Belege: `update_v2.0.0.pl` (`node_12.x buster` + `apt_install nodejs yarn`),
 `updatereboot_v3.0.0.pl` (`setup_18.x` + `apt_install nodejs yarn`); `packages11.txt` listet
