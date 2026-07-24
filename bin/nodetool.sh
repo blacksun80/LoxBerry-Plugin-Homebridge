@@ -154,6 +154,28 @@ all_source_files() {
     shopt -u nullglob
 }
 
+# Obsolete/kollidierende Alt-Pakete, die moderne nodejs-Pakete blockieren.
+handle_legacy_conflicts() {
+    if dpkg -l 2>/dev/null | grep -qE '^ii +nodejs-legacy '; then
+        echo "<WARNUNG> 'nodejs-legacy' ist installiert - blockiert moderne nodejs-Pakete."
+        confirm "nodejs-legacy jetzt entfernen (purge)?" && apt-get purge -y nodejs-legacy
+    fi
+}
+
+# Installiert nodejs; npm nur, falls es danach nicht vorhanden ist.
+# (NodeSource-nodejs bringt npm mit und kollidiert mit dem separaten npm-Paket.)
+install_node_pkg() {
+    if apt-get install -y nodejs; then
+        if ! command -v npm >/dev/null 2>&1; then
+            apt-get install -y npm || true
+        fi
+        echo "Ergebnis: node=$(node -v 2>/dev/null || echo n/a), npm=$(npm -v 2>/dev/null || echo n/a)"
+        return 0
+    fi
+    echo "<WARNUNG> apt-get install nodejs fehlgeschlagen (siehe Meldungen oben)."
+    return 1
+}
+
 # ============================================================
 # 3) Node/npm via apt-get
 # ============================================================
@@ -165,10 +187,10 @@ apt_node_menu() {
     if [ -z "$cand" ] || [ "$cand" = "(none)" ]; then
         echo "<WARNUNG> Kein apt-Kandidat fuer 'nodejs' - auf dieser Plattform via apt nicht installierbar."
     else
-        echo "apt wuerde installieren: nodejs $cand  (Debian-Version, oft aelter als NodeSource/DietPi)."
+        echo "apt wuerde installieren: nodejs $cand  (npm ist enthalten bzw. wird ergaenzt)."
     fi
     echo ""
-    echo "  1) nodejs + npm via apt installieren"
+    echo "  1) nodejs (npm inkl.) via apt installieren"
     echo "  2) nodejs + npm via apt deinstallieren (purge)"
     echo "  0) zurueck"
     local c; read -rp "Auswahl: " c
@@ -177,8 +199,9 @@ apt_node_menu() {
             if [ -z "$cand" ] || [ "$cand" = "(none)" ]; then
                 confirm "Trotzdem versuchen?" || return
             fi
+            handle_legacy_conflicts
             apt-get update
-            apt-get install -y nodejs npm
+            install_node_pkg
             ;;
         2)
             confirm "nodejs/npm wirklich per apt purgen?" || return
@@ -246,14 +269,12 @@ nodesource_node_menu() {
                 echo "<WARNUNG> Fuer Architektur $NODE_ARCH gibt es fuer node $major moeglicherweise KEINE Builds."
                 confirm "Trotzdem versuchen?" || return
             fi
+            handle_legacy_conflicts
             refresh_nodesource_key
             ensure_nodesource_repo "$major"
             apt-get update
-            if apt-get install -y nodejs; then
-                echo "Ergebnis: node=$(node -v 2>/dev/null || echo n/a), npm=$(npm -v 2>/dev/null || echo n/a)"
-            else
-                echo "<WARNUNG> apt-get install nodejs (NodeSource node $major) fehlgeschlagen -"
-                echo "          evtl. kein Build fuer $NODE_ARCH oder Version am EOL."
+            if ! install_node_pkg; then
+                echo "          (NodeSource node $major - evtl. kein Build fuer $NODE_ARCH oder Version am EOL.)"
             fi
             ;;
         2)
