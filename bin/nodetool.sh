@@ -130,8 +130,16 @@ show_node_status() {
     probe_bin /usr/local/bin/node
     probe_bin /usr/bin/npm
     probe_bin /usr/local/bin/npm
-    echo "--- apt-Paket nodejs/npm ---"
-    dpkg -l 2>/dev/null | grep -iE '^ii +(nodejs|npm) ' || echo "  (kein apt-Paket nodejs/npm installiert)"
+    echo "--- installierte node-bezogene apt-Pakete ---"
+    local pkgs
+    pkgs=$(dpkg -l 2>/dev/null | grep -iE '^ii +(nodejs|npm|libnode)')
+    if [ -n "$pkgs" ]; then
+        echo "$pkgs" | sed 's/^/  /'
+        echo "$pkgs" | grep -qE '^ii +nodejs-legacy ' && \
+            echo "  <WARNUNG> 'nodejs-legacy' ist obsolet und blockiert moderne nodejs-Pakete (entfernen: Menue 3 -> 3)."
+    else
+        echo "  (keine node-bezogenen apt-Pakete installiert)"
+    fi
     echo "--- NodeSource-Source-Listen ---"
     grep -rniE 'nodesource' /etc/apt/sources.list /etc/apt/sources.list.d/ 2>/dev/null || echo "  (keine)"
 }
@@ -180,25 +188,13 @@ install_node_pkg() {
 # 3) Node/npm via apt-get
 # ============================================================
 apt_node_menu() {
-    echo "--- apt-get: Kandidat pruefen ---"
-    apt-cache policy nodejs 2>/dev/null | head -4
-    local cand
-    cand=$(apt-cache policy nodejs 2>/dev/null | awk '/Candidate:/{print $2}')
-    if [ -z "$cand" ] || [ "$cand" = "(none)" ]; then
-        echo "<WARNUNG> Kein apt-Kandidat fuer 'nodejs' - auf dieser Plattform via apt nicht installierbar."
-    else
-        echo "apt wuerde installieren: nodejs $cand  (npm ist enthalten bzw. wird ergaenzt)."
-    fi
-    echo ""
     echo "  1) nodejs (npm inkl.) via apt installieren"
     echo "  2) nodejs + npm via apt deinstallieren (purge)"
+    echo "  3) Legacy-/Alt-Pakete entfernen (nodejs-legacy)"
     echo "  0) zurueck"
     local c; read -rp "Auswahl: " c
     case "$c" in
         1)
-            if [ -z "$cand" ] || [ "$cand" = "(none)" ]; then
-                confirm "Trotzdem versuchen?" || return
-            fi
             handle_legacy_conflicts
             apt-get update
             install_node_pkg
@@ -207,6 +203,16 @@ apt_node_menu() {
             confirm "nodejs/npm wirklich per apt purgen?" || return
             apt-get purge -y nodejs npm
             apt-get autoremove -y
+            ;;
+        3)
+            local legacy
+            legacy=$(dpkg -l 2>/dev/null | grep -E '^ii +nodejs-legacy ' | awk '{print $2}')
+            if [ -z "$legacy" ]; then
+                echo "Kein 'nodejs-legacy' installiert - nichts zu tun."
+            else
+                echo "Gefunden: $legacy"
+                confirm "nodejs-legacy purgen?" && { apt-get purge -y $legacy; apt-get autoremove -y; }
+            fi
             ;;
         *) : ;;
     esac
