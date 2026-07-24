@@ -143,6 +143,17 @@ confirm() {
     case "$a" in j|J|y|Y) return 0 ;; *) return 1 ;; esac
 }
 
+# Alle apt-Quellen-Dateien ausgeben (Basis + Drop-ins, .list und .sources).
+all_source_files() {
+    [ -f /etc/apt/sources.list ] && echo /etc/apt/sources.list
+    shopt -s nullglob
+    local f
+    for f in /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources; do
+        echo "$f"
+    done
+    shopt -u nullglob
+}
+
 # ============================================================
 # 3) Node/npm via apt-get
 # ============================================================
@@ -184,7 +195,7 @@ apt_node_menu() {
 refresh_nodesource_key() {
     mkdir -p "$(dirname "$NODESOURCE_KEYRING")"
     if curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key \
-         | gpg --dearmor -o "$NODESOURCE_KEYRING" 2>/dev/null; then
+         | gpg --batch --yes --dearmor -o "$NODESOURCE_KEYRING" 2>/dev/null; then
         chmod 0644 "$NODESOURCE_KEYRING"
         echo "NodeSource-Key aktualisiert ($NODESOURCE_KEYRING)."
     else
@@ -300,6 +311,9 @@ sources_check_menu() {
 # 6) Abgelaufene/fehlende Repo-Keys erneuern
 # ============================================================
 renew_keys_menu() {
+    echo "--- Konfigurierte APT-Quellen ---"
+    all_source_files | sed 's/^/  /'
+    echo ""
     echo "--- apt-get update (Signaturen/Keys pruefen) ---"
     local PROBLEM_RE='NO_PUBKEY|EXPKEY|KEYEXPIRED|no valid OpenPGP|couldn.?t be verified|not be verified|is not signed|invalid signature|^Err:|^W: (GPG|An error)'
     local out
@@ -317,14 +331,14 @@ renew_keys_menu() {
     echo "Gefundene Probleme:"
     echo "$problems"
     echo ""
-    # Bekannte, von LoxBerry gesetzte Repos gezielt auffrischen.
-    if grep -rliE 'nodesource' /etc/apt/sources.list.d/ >/dev/null 2>&1; then
+    # Nur die Repos auffrischen, die im apt-Update tatsaechlich betroffen waren.
+    if echo "$problems" | grep -qiE 'nodesource'; then
         echo "-> NodeSource-Key auffrischen ..."
         refresh_nodesource_key
     fi
-    if grep -rliE 'yarnpkg' /etc/apt/sources.list.d/ >/dev/null 2>&1; then
+    if echo "$problems" | grep -qiE 'yarnpkg|dl\.yarnpkg'; then
         echo "-> Yarn-Key auffrischen ..."
-        curl -sL https://dl.yarnpkg.com/debian/pubkey.gpg | gpg --dearmor -o "$YARN_KEYRING" 2>/dev/null \
+        curl -sL https://dl.yarnpkg.com/debian/pubkey.gpg | gpg --batch --yes --dearmor -o "$YARN_KEYRING" 2>/dev/null \
             && chmod 0644 "$YARN_KEYRING" && echo "Yarn-Key aktualisiert." \
             || echo "<WARNUNG> Yarn-Key konnte nicht geladen werden."
     fi
@@ -404,24 +418,24 @@ remove_local_node_menu() {
 # 9) APT-Repo-Dateien verwalten (anzeigen/loeschen)
 # ============================================================
 sources_manage_menu() {
-    echo "--- Repo-Dateien in /etc/apt/sources.list.d/ ---"
-    shopt -s nullglob
-    local files=(/etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources)
-    shopt -u nullglob
+    echo "--- Alle APT-Quellen-Dateien ---"
+    local files=()
+    mapfile -t files < <(all_source_files)
     if [ "${#files[@]}" -eq 0 ]; then
-        echo "  (keine zusaetzlichen Repo-Dateien)"
-        echo "  (Die Debian-Basis-Repos in /etc/apt/sources.list werden hier bewusst nicht"
-        echo "   angeboten - ein Loeschen wuerde apt lahmlegen.)"
+        echo "  (keine gefunden)"
         return
     fi
-    local i=1 f firstdeb
+    local i=1 f firstdeb tag
     for f in "${files[@]}"; do
         firstdeb=$(grep -m1 -iE '^\s*(deb |Types:|URIs:)' "$f" 2>/dev/null | sed 's/^ *//')
-        echo "  $i) $(basename "$f")   [${firstdeb:-leer}]"
+        tag=""
+        [ "$f" = "/etc/apt/sources.list" ] && tag="  <-- Debian-Basis (Loeschen bricht apt!)"
+        echo "  $i) $f$tag"
+        echo "       [${firstdeb:-leer}]"
         i=$((i+1))
     done
     echo "  0) zurueck"
-    local c; read -rp "Datei-Nummer zum LOESCHEN (0 = zurueck): " c
+    local c; read -rp "Nummer zum LOESCHEN (0 = zurueck): " c
     if ! [[ "$c" =~ ^[0-9]+$ ]] || [ "$c" -lt 1 ] || [ "$c" -gt "${#files[@]}" ]; then
         echo "Abgebrochen."
         return
@@ -431,7 +445,11 @@ sources_manage_menu() {
     echo "Inhalt von $sel:"
     cat "$sel"
     echo ""
-    confirm "Diese Repo-Datei wirklich loeschen?" || return
+    if [ "$sel" = "/etc/apt/sources.list" ]; then
+        echo "<WARNUNG> Das ist die Debian-Basis-Quelle - Loeschen legt apt lahm"
+        echo "          (keine Updates/Installs mehr moeglich)!"
+    fi
+    confirm "Diese Datei ($sel) wirklich loeschen?" || return
     rm -f "$sel" && echo "geloescht: $sel"
     echo "Hinweis: danach 'apt-get update' (z.B. via Menue 6) ausfuehren."
 }
