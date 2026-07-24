@@ -89,12 +89,13 @@ show_system_info() {
     echo "OS:          ${PRETTY:-unbekannt} (Codename: ${CODENAME:-?})"
     echo "DietPi:      $( [ "$IS_DIETPI" -eq 1 ] && echo "ja (Node = Software-ID 9)" || echo "nein" )"
     local rec; rec=$(recommended_nodesource_major)
-    if [ -n "$rec" ]; then
-        echo "LoxBerry-Standard hier: NodeSource node $rec -> /usr/bin/node"
-    elif [ "$IS_DIETPI" -eq 1 ]; then
-        echo "LoxBerry-Standard hier: DietPi (Software 9) -> /usr/local/bin/node"
+    if [ "$IS_DIETPI" -eq 1 ]; then
+        echo "Installationsart: DietPi -> Node via Software 9 in /usr/local/bin/node"
+    elif [ -n "$rec" ]; then
+        echo "Installationsart: NodeSource-Basis -> node $rec in /usr/bin/node"
     else
-        echo "LoxBerry-Standard hier: nicht eindeutig (Codename ${CODENAME:-?})"
+        echo "Installationsart: kein DietPi -> vermutlich In-Place-Update;"
+        echo "                  Node-Lage in Menue 2 pruefen (/usr/bin oder /usr/local)."
     fi
     echo "------------------------------------------------------------"
 }
@@ -387,8 +388,9 @@ renew_keys_menu() {
 # ============================================================
 dietpi_node_menu() {
     if [ "$IS_DIETPI" -ne 1 ]; then
-        echo "DietPi nicht gefunden (/boot/dietpi/dietpi-software)."
-        echo "Dieser Weg ist nur auf DietPi-Basis (Bookworm/Trixie, LB4) relevant."
+        echo "Keine DietPi-Installation gefunden (/boot/dietpi/dietpi-software fehlt)."
+        echo "Normal z.B. bei einem In-Place-Update (LB2->LB3->LB4) - dann wurde Node"
+        echo "NICHT ueber DietPi installiert (siehe Menue 2/3/4)."
         return
     fi
     echo "DietPi verwaltet Node.js als Software-ID 9 (Ziel: /usr/local/bin/node)."
@@ -427,8 +429,8 @@ remove_local_node_menu() {
     fi
     if [ "$IS_DIETPI" -eq 1 ]; then
         echo ""
-        echo "<WARNUNG> DietPi erkannt! Auf Bookworm/Trixie ist /usr/local/bin/node das"
-        echo "          LEGITIME System-Node (von DietPi verwaltet). Zum Reparieren besser"
+        echo "<WARNUNG> DietPi erkannt! Hier ist /usr/local/bin/node das LEGITIME,"
+        echo "          von DietPi verwaltete System-Node. Zum Reparieren besser"
         echo "          Menuepunkt 7 (DietPi reinstall) nutzen, statt hier zu loeschen."
     fi
     echo ""
@@ -497,7 +499,7 @@ while true; do
     echo " 4) Node/npm via NodeSource installieren/deinstallieren"
     echo " 5) NodeSource-Eintrag in Sources-Liste pruefen/hinzufuegen"
     echo " 6) Abgelaufene/fehlende Repo-Keys erneuern"
-    echo " 7) Node via DietPi verwalten (Bookworm/Trixie / LB4)"
+    echo " 7) Node via DietPi verwalten (nur bei DietPi-Installation)"
     echo " 8) Manuell installiertes Node/npm unter /usr/local entfernen"
     echo " 9) APT-Repo-Dateien verwalten (anzeigen/loeschen)"
     echo " 0) Beenden"
