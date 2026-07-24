@@ -196,10 +196,15 @@ echo "============================================================"
 echo "Schritt 5: Homebridge + Config UI X installieren"
 echo "============================================================"
 
+# Bei Node-Wechsel wird npm-global NICHT geloescht: hier liegen die vom Anwender
+# ueber die Config-UI nachinstallierten Homebridge-Plugins. Homebridge + Config
+# UI X werden neu installiert (das recompiliert ihre nativen Module), die uebrigen
+# Plugins werden danach per "npm rebuild" gegen das neue Node neu gebaut.
 if [ "$NODE_CHANGED" -eq 1 ]; then
-    echo "Node-Version geaendert - npm-global wird neu aufgebaut."
-    rm -rf "${HB_NPM_GLOBAL:?}"
-    mkdir -p "$HB_NPM_GLOBAL"
+    EXTRA_PKGS=$(ls -1 "$HB_NPM_GLOBAL/lib/node_modules" 2>/dev/null \
+        | grep -vE '^(homebridge|homebridge-config-ui-x|npm|corepack|\.bin)$' | tr '\n' ' ')
+    [ -n "$EXTRA_PKGS" ] && echo "Erhaltene Zusatz-Pakete: $EXTRA_PKGS"
+    echo "Node-Version geaendert - Homebridge/Config-UI-X werden neu gebaut, Plugins bleiben erhalten."
 fi
 
 if [ "$NODE_CHANGED" -eq 0 ] \
@@ -234,6 +239,21 @@ else
         exit 1
     fi
     echo "Homebridge-Installation erfolgreich."
+
+    # Nach einem Node-Wechsel alle npm-Module (inkl. nachinstallierter Plugins)
+    # gegen das neue Node neu bauen. "hb-service rebuild --all" ist der offizielle
+    # Weg ("use after updating Node.js"); npm rebuild dient als Fallback.
+    if [ "$NODE_CHANGED" -eq 1 ]; then
+        echo "Node gewechselt - alle npm-Module gegen das neue Node neu bauen (hb-service rebuild --all) ..."
+        if PATH="$HB_NODE_DIR/bin:$HB_NPM_GLOBAL/bin:$PATH" "$HB_NPM_GLOBAL/bin/hb-service" rebuild --all >> "$NPM_INSTALL_LOG" 2>&1; then
+            echo "Rebuild abgeschlossen (hb-service rebuild --all)."
+        else
+            echo "<WARNING> hb-service rebuild --all fehlgeschlagen - versuche 'npm rebuild' ..."
+            "$LOCAL_NPM" rebuild -g --prefix "$HB_NPM_GLOBAL" --cache "$NPM_CACHE_DIR" >> "$NPM_INSTALL_LOG" 2>&1 \
+                && echo "Rebuild abgeschlossen (npm rebuild)." \
+                || echo "<WARNING> npm rebuild ebenfalls mit Fehlern - Plugins ggf. in der Config-UI neu installieren."
+        fi
+    fi
 fi
 
 "$HB_NPM_GLOBAL/bin/homebridge" -V 2>/dev/null || true
