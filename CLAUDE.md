@@ -111,21 +111,20 @@ gelöschtes Node zeigt.
 Wo das System-Node liegt und woher es kommt, ist je LoxBerry-Version anders – entscheidend für
 Erkennung/Warnung und dafür, was ein Repair **niemals** anfassen darf:
 
-Die Node-Lage hängt an der **Debian-Version**, nicht strikt an der LB-Nummer (die aktuelle
-LoxBerry läuft lt. `libs/pythonlib/.../core.py` auf Bullseye **und** Bookworm **und** Trixie):
+Verifiziert über die offiziellen Installer (`mschlenstedt/Loxberry_Installer`) und Dist-Upgrades:
 
-- **Debian 10 (Buster) = LB2:** NodeSource **node 12**, apt/dpkg, unter **`/usr/bin/node`**.
-- **Debian 11 (Bullseye) = LB3:** NodeSource **node 18** (`setup_18.x`), apt/dpkg, unter
-  **`/usr/bin/node`**.
-- **Debian 13 (Trixie):** LoxBerry bündelt ein **eigenes Node (v26) unter `/usr/local/bin/node`**
-  (Besitzer `loxberry:loxberry`, kein dpkg, keine NodeSource-Liste) – auf frischem Gerät verifiziert.
-- **Debian 12 (Bookworm):** LB-Zuordnung nicht aus dem Repo belegbar (kein Dist-Upgrade dahin);
-  Node-Lage **noch nicht am Gerät bestätigt**. Die Anzeige (`show_node` in postroot) zeigt sie direkt.
+- **Debian 10 (Buster) = LB2:** NodeSource **node 12** → **`/usr/bin/node`**.
+- **Debian 11 (Bullseye) = LB3:** NodeSource **node 18** (`install_bullseye.sh`: `NODEJS_VERSION=18`,
+  `setup_18.x` + `apt install nodejs`) → **`/usr/bin/node`**.
+- **Debian 12 (Bookworm) = LB3:** Node über **DietPi** (`install_bookworm.sh`:
+  `dietpi-software install 9`, Software-ID 9 = Node.js) → **`/usr/bin/node`**.
+- **Debian 13 (Trixie) = LB4:** LoxBerry bündelt ein **eigenes Node (v26) unter
+  `/usr/local/bin/node`** (Besitzer `loxberry:loxberry`, kein dpkg, keine NodeSource-Liste) –
+  auf frischem Gerät verifiziert.
 
-Dist-Upgrade-Belege: `updatereboot_v2.0.0.pl` (Stretch→Buster), `updatereboot_v3.0.0.pl`
-(Buster→Bullseye). Bookworm/Trixie haben **kein** Dist-Upgrade-Skript (frische Images). Ein manuell
-per `apt-get install nodejs` nachgeschobenes Debian-Node (z.B. v12 auf Bullseye) ist NICHT der
-LoxBerry-Standard.
+**Invariante:** LB2/LB3 (Buster/Bullseye/Bookworm) → System-Node in **`/usr/bin`**; LB4 (Trixie) →
+gebündelt in **`/usr/local`**. Bookworm **und** Bullseye sind beide LB3. Ein manuell per
+`apt-get install nodejs` nachgeschobenes Node (z.B. v12 auf Bullseye) ist NICHT der Standard.
 
 Belege: `update_v2.0.0.pl` (`node_12.x buster` + `apt_install nodejs yarn`),
 `updatereboot_v3.0.0.pl` (`setup_18.x` + `apt_install nodejs yarn`); `packages11.txt` listet
