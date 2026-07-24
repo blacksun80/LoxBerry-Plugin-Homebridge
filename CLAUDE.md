@@ -118,7 +118,9 @@ gelöschtes Node zeigt.
   ein früherer Versuch (grep auf `/etc/default/homebridge` bzw. die `.service`-Datei nach `-U`) war
   je nach hb-service-Version unzuverlässig und wurde ersatzlos gestrichen. Wird auch nicht gebraucht:
   wir registrieren den Dienst ohnehin immer mit dem festen `$HB_STORAGE_DIR` neu.
-- Kommentare/Log-Ausgaben auf Deutsch (Ziel: der/die Betreiber:in liest das LoxBerry-Log).
+- **Kommentare beschreiben WAS getan wird, nicht WARUM.** Kurz halten.
+- Kommentare/Log-Ausgaben **immer auf Deutsch** – auch wenn Vorlagen oder Fremddateien
+  englisch o.ä. sind (Ziel: der/die Betreiber:in liest das LoxBerry-Log).
 - Hook-Skripte werden von Interface 2.0 **automatisch am Dateinamen erkannt** – kein `plugin.cfg`-Eintrag nötig.
 
 ## Testen / Deployen

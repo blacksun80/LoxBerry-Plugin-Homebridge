@@ -1,17 +1,14 @@
 #!/bin/bash
+# uninstall
 #
-# Wird als User "root" ausgefuehrt, wenn das Plugin deinstalliert wird.
-# Entfernt den Homebridge-systemd-Dienst (mit dem isolierten hb-service),
-# raeumt Reste auf und loescht die Config-Backups.
+# Laeuft als User "root", am Ende einer Deinstallation.
 #
-# Das isolierte Node.js + Homebridge liegen unter der persistenten Runtime
-# ($LBHOMEDIR/data/system/homebridge_runtime) - ausserhalb der Plugin-Ordner,
-# daher loescht der LoxBerry-Installer sie NICHT. Dieses Skript raeumt sie
-# deshalb selbst weg (kein npm noetig, einfach das Verzeichnis entfernen).
-# Das System-Node (apt, /usr/bin/node) bleibt bewusst stehen, da es von
-# anderen Komponenten genutzt werden koennte.
+# Raeumt nur Dinge auf, die AUSSERHALB des Plugin-Ordners liegen. Config,
+# Data (inkl. Runtime) usw. innerhalb des Plugin-Ordners loescht der
+# LoxBerry-Installer selbst.
 #
-# Exit code 0 = ok, 1 = Warnung (Deinstallation laeuft weiter).
+# Schritt 1: Homebridge-Dienst stoppen und deinstallieren (systemd-Unit).
+# Schritt 2: Backup-Ordner (Config + Runtime) loeschen.
 #
 # Argumente: command <TEMPFOLDER> <NAME> <FOLDER> <VERSION> <BASEFOLDER>
 
@@ -22,24 +19,26 @@ PDIR=$3
 PVERSION=$4
 LBHOMEDIR=$5
 
-HB_RUNTIME_DIR="$LBHOMEDIR/data/system/homebridge_runtime"
+PDATA=$LBPDATA/$PDIR
+HB_RUNTIME_DIR="$PDATA/homebridge_runtime"
 HB_NODE_DIR="$HB_RUNTIME_DIR/nodejs"
 HB_NPM_GLOBAL="$HB_RUNTIME_DIR/npm-global"
 HB_SERVICE="$HB_NPM_GLOBAL/bin/hb-service"
 SERVICE_UNIT="/etc/systemd/system/homebridge.service"
 
-echo "<INFO> Deinstalliere Homebridge-Dienst."
+BACKUP_ROOT="$LBHOMEDIR/data/system/tmp/homebridge_backup"
 
-# Dienst stoppen (egal ob Unit-ExecStart noch gueltig ist).
+echo "============================================================"
+echo "Schritt 1: Homebridge-Dienst deinstallieren"
+echo "============================================================"
+
 systemctl stop homebridge.service 2>/dev/null || true
 
-# Bevorzugt sauber ueber das isolierte hb-service deinstallieren.
 export PATH="$HB_NODE_DIR/bin:$HB_NPM_GLOBAL/bin:$PATH"
 if [ -x "$HB_SERVICE" ]; then
     "$HB_SERVICE" uninstall || true
 fi
 
-# Hart nachraeumen, falls das systemd-Unit noch existiert.
 if [ -f "$SERVICE_UNIT" ]; then
     echo "<INFO> Entferne verbliebenes systemd-Unit."
     systemctl disable --now homebridge.service 2>/dev/null || true
@@ -47,16 +46,18 @@ if [ -f "$SERVICE_UNIT" ]; then
     systemctl daemon-reload 2>/dev/null || true
 fi
 
-# Config-Backups entfernen - sonst wuerde eine spaetere Neuinstallation ueber
-# postroot.sh eine alte Konfiguration wiederherstellen.
-rm -rf "$LBHOMEDIR/data/system/tmp/homebridge_config_backup"
+echo ""
+echo "============================================================"
+echo "Schritt 2: Backup-Ordner loeschen"
+echo "============================================================"
 
-# Persistente Runtime (isoliertes Node.js + Homebridge) entfernen. Sie liegt
-# ausserhalb der Plugin-Ordner und wird vom LoxBerry-Installer NICHT geloescht,
-# muss also hier explizit weg.
-echo "<INFO> Entferne persistente Homebridge-Runtime unter $HB_RUNTIME_DIR."
-rm -rf "$HB_RUNTIME_DIR"
+if [ -d "$BACKUP_ROOT" ]; then
+    echo "<INFO> Entferne $BACKUP_ROOT."
+    rm -rf "$BACKUP_ROOT"
+else
+    echo "<INFO> Kein Backup-Ordner vorhanden."
+fi
 
-echo "<OK> Homebridge-Dienst und Runtime entfernt."
+echo "<OK> Aufraeumen abgeschlossen."
 
 exit 0

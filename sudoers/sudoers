@@ -1,0 +1,9 @@
+# sudoers-Eintrag fuer das Homebridge-Plugin.
+#
+# LoxBerry benennt diese Datei bei der Installation in den Plugin-Namen um,
+# legt sie unter /etc/sudoers.d/<pluginname> ab und entfernt sie beim
+# Deinstallieren wieder. REPLACE-Platzhalter werden install-time ersetzt.
+#
+# Setzt secure_path fuer "loxberry" auf die isolierte Node-Runtime plus den
+# Standard-PATH (wird von "sudo -E -n npm install ..." der Config-UI genutzt).
+Defaults:loxberry secure_path="REPLACELBPDATADIR/homebridge_runtime/nodejs/bin:REPLACELBPDATADIR/homebridge_runtime/npm-global/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
