@@ -4,9 +4,10 @@
 # Laeuft als User "root", VOR dem Loeschen der alten Plugin-Ordner.
 #
 # Schritt 1: Homebridge stoppen, Port 8082 freigeben.
-# Schritt 2: Alte systemweite npm-Installation (0.1/0.2) in die neue,
-#            isolierte Runtime migrieren (falls vorhanden).
-# Schritt 3: Alte, externe Runtime aus fruehreren Versionen (0.3) migrieren (falls vorhanden).
+# Schritt 2: Alte Installation/Runtime uebernehmen (nach Prioritaet):
+#            Zielpfad-Runtime schon da -> nur Reste putzen; sonst 0.3-Runtime
+#            (data/system) komplett uebernehmen; sonst systemweite 0.1/0.2-Module
+#            migrieren (homebridge/config-ui-x ausgenommen). Danach Quellen weg.
 #
 # Argumente: command <TEMPFOLDER> <NAME> <FOLDER> <VERSION> <BASEFOLDER> <TEMPPATH>
 
@@ -61,100 +62,94 @@ fi
 
 echo ""
 echo "============================================================"
-echo "Schritt 2: Alte, systemweite Homebridge-Installation migrieren"
+echo "Schritt 2: Alte Homebridge-Installation/Runtime uebernehmen"
 echo "============================================================"
 
-# Node 0.1/0.2 installierte per "npm install -g" in den System-Node-Praefix.
-# Je nach Debian-Basisversion liegt der unter /usr/local (Bookworm/Trixie,
-# DietPi-Node) oder /usr (Buster/Bullseye, NodeSource-Node) - siehe
-# Claude_Gedaechtnis/LoxBerry/Node-Version-je-Debian.md. Das Node-Binary
-# selbst bleibt unangetastet (die neue Runtime laedt sich ihr eigenes);
-# migriert werden nur die node_modules, damit nachinstallierte Plugins
-# (npm-Konvention: auch die heissen "homebridge-*") nicht verloren gehen.
+# Pfade:
+#   NEW_RUNTIME_DIR  = isolierte Runtime am Zielpfad (ab 0.4)
+#   HB03_RUNTIME_DIR = isolierte Runtime von 0.3 (externer data/system-Pfad)
+#   /usr/lib bzw. /usr/local/lib/node_modules/homebridge* = systemweite 0.1/0.2-Reste
 NEW_RUNTIME_DIR="$LBPDATA/$PDIR/homebridge_runtime"
 NEW_NPM_GLOBAL_MODULES="$NEW_RUNTIME_DIR/npm-global/lib/node_modules"
 HB03_RUNTIME_DIR="$LBHOMEDIR/data/system/homebridge_runtime"
 
-# Ist schon eine "echte" Runtime vorhanden (Zielpfad ODER der 0.3-Zwischenpfad,
-# der erst in Schritt 3 umgezogen wird)? Dann sind /usr/lib|/usr/local/lib-
-# Reste nur alte, nie aufgeraeumte 0.1/0.2-Leichen - NICHT mehr uebernehmen.
-# Sonst wuerde Schritt 3 gleich danach die echte, aktuelle 0.3-Runtime am
-# Zwischenpfad nur noch loeschen (weil der Zielpfad ja "schon existiert"),
-# statt sie zu migrieren.
-HAVE_REAL_RUNTIME=0
-[ -d "$NEW_NPM_GLOBAL_MODULES" ] && [ -n "$(ls -A "$NEW_NPM_GLOBAL_MODULES" 2>/dev/null)" ] && HAVE_REAL_RUNTIME=1
-[ -d "$HB03_RUNTIME_DIR" ] && [ -n "$(ls -A "$HB03_RUNTIME_DIR" 2>/dev/null)" ] && HAVE_REAL_RUNTIME=1
+# Systemweite 0.1/0.2-Reste (homebridge*-Module + bin-Symlinks) entfernen.
+remove_systemwide_leftovers() {
+    local d b OLD_MODULES_DIR
+    for OLD_MODULES_DIR in /usr/local/lib/node_modules /usr/lib/node_modules; do
+        shopt -s nullglob
+        local dirs=("$OLD_MODULES_DIR"/homebridge*)
+        shopt -u nullglob
+        for d in "${dirs[@]}"; do
+            echo "<INFO> Entferne alten Rest $d ..."
+            rm -rf "$d"
+        done
+    done
+    for b in /usr/local/bin/homebridge /usr/local/bin/hb-service /usr/bin/homebridge /usr/bin/hb-service; do
+        [ -e "$b" ] && { echo "<INFO> Entferne Symlink $b ..."; rm -f "$b"; }
+    done
+}
 
-FOUND_OLD=0
-for OLD_MODULES_DIR in /usr/local/lib/node_modules /usr/lib/node_modules; do
-    shopt -s nullglob
-    OLD_HOMEBRIDGE_DIRS=("$OLD_MODULES_DIR"/homebridge*)
-    shopt -u nullglob
-    [ "${#OLD_HOMEBRIDGE_DIRS[@]}" -eq 0 ] && continue
-    FOUND_OLD=1
+if [ -d "$NEW_NPM_GLOBAL_MODULES" ] && [ -n "$(ls -A "$NEW_NPM_GLOBAL_MODULES" 2>/dev/null)" ]; then
+    # Fall 1: Es liegt schon eine Runtime mit Modulen am Zielpfad - nur alte
+    # Leichen (0.3-Runtime + systemweite Reste) aufraeumen.
+    echo "<INFO> Runtime am Zielpfad vorhanden - entferne nur alte Reste."
+    if [ -d "$HB03_RUNTIME_DIR" ]; then
+        echo "<INFO> Entferne alte 0.3-Runtime $HB03_RUNTIME_DIR ..."
+        rm -rf "$HB03_RUNTIME_DIR"
+    fi
+    remove_systemwide_leftovers
 
-    if [ "$HAVE_REAL_RUNTIME" -eq 1 ]; then
-        echo "<INFO> Es existiert bereits eine aktuelle Runtime (0.3+) - entferne nur die veralteten Reste in $OLD_MODULES_DIR/homebridge*."
+elif [ -d "$HB03_RUNTIME_DIR" ] && [ -n "$(ls -A "$HB03_RUNTIME_DIR" 2>/dev/null)" ]; then
+    # Fall 2: Keine Runtime am Zielpfad, aber eine 0.3-Runtime unter data/system.
+    # Die enthaelt ein isoliertes Node - komplett uebernehmen (Node wird in
+    # postroot wiederverwendet, wenn die Version passt), danach Quelle + Reste weg.
+    echo "<INFO> Uebernehme komplette 0.3-Runtime (inkl. Node) von $HB03_RUNTIME_DIR ..."
+    if mkdir -p "$NEW_RUNTIME_DIR" && cp -a "$HB03_RUNTIME_DIR"/. "$NEW_RUNTIME_DIR"/; then
+        chown -R loxberry:loxberry "$NEW_RUNTIME_DIR"
+        rm -rf "$HB03_RUNTIME_DIR"
+        echo "<OK> 0.3-Runtime uebernommen."
     else
+        echo "<WARNING> Uebernahme fehlgeschlagen - $HB03_RUNTIME_DIR bleibt vorerst erhalten."
+    fi
+    remove_systemwide_leftovers
+
+else
+    # Fall 3: Nur systemweite 0.1/0.2-Module - die Zusatz-Plugins migrieren
+    # (homebridge + config-ui-x ueberspringen, werden in postroot frisch
+    # installiert), danach die Quellen + Reste entfernen.
+    FOUND_OLD=0
+    for OLD_MODULES_DIR in /usr/local/lib/node_modules /usr/lib/node_modules; do
+        shopt -s nullglob
+        OLD_HOMEBRIDGE_DIRS=("$OLD_MODULES_DIR"/homebridge*)
+        shopt -u nullglob
+        [ "${#OLD_HOMEBRIDGE_DIRS[@]}" -eq 0 ] && continue
+        FOUND_OLD=1
         mkdir -p "$NEW_NPM_GLOBAL_MODULES"
         for d in "${OLD_HOMEBRIDGE_DIRS[@]}"; do
             bn=$(basename "$d")
-            # homebridge + config-ui-x werden in postroot ohnehin frisch
-            # installiert - nur die Zusatz-Plugins muessen migriert werden.
             case "$bn" in
                 homebridge|homebridge-config-ui-x)
                     echo "<INFO> $bn wird neu installiert - Migration uebersprungen."
                     continue
                     ;;
             esac
-            echo "<INFO> Migriere $bn von $OLD_MODULES_DIR nach $NEW_NPM_GLOBAL_MODULES (kann je nach Groesse dauern) ..."
+            echo "<INFO> Migriere $bn von $OLD_MODULES_DIR (kann je nach Groesse dauern) ..."
             if cp -a "$d" "$NEW_NPM_GLOBAL_MODULES"/; then
                 echo "<OK> $bn migriert."
             else
                 echo "<WARNING> Migration von $d fehlgeschlagen."
             fi
         done
-        # cp -a erhaelt den root:root-Besitz der Quelle - preupgrade.sh
-        # (User loxberry) muesste die Runtime spaeter aber per "mv"
-        # verschieben koennen, dafuer braucht es Schreibrecht auf das
-        # Verzeichnis selbst (rename() aktualisiert den ".."-Eintrag).
-        chown -R loxberry:loxberry "$NEW_RUNTIME_DIR"
-    fi
-
-    for d in "${OLD_HOMEBRIDGE_DIRS[@]}"; do
-        echo "<INFO> Entferne $d ..."
-        rm -rf "$d"
     done
-done
-[ "$FOUND_OLD" -eq 0 ] && echo "<INFO> Keine alten systemweiten homebridge*-Ordner gefunden."
-
-for b in /usr/local/bin/homebridge /usr/local/bin/hb-service /usr/bin/homebridge /usr/bin/hb-service; do
-    if [ -e "$b" ]; then
-        echo "<INFO> Entferne Symlink $b ..."
-        rm -f "$b"
-    fi
-done
-
-echo ""
-echo "============================================================"
-echo "Schritt 3: Alte, externe Runtime aus fruehreren Versionen migrieren"
-echo "============================================================"
-
-OLD_RUNTIME_DIR="$LBHOMEDIR/data/system/homebridge_runtime"
-NEW_RUNTIME_DIR="$LBPDATA/$PDIR/homebridge_runtime"
-
-if [ -d "$OLD_RUNTIME_DIR" ]; then
-    if [ -d "$NEW_RUNTIME_DIR" ]; then
-        echo "<INFO> $NEW_RUNTIME_DIR existiert bereits - entferne nur $OLD_RUNTIME_DIR."
-        rm -rf "$OLD_RUNTIME_DIR"
-    elif mkdir -p "$NEW_RUNTIME_DIR" && cp -a "$OLD_RUNTIME_DIR"/. "$NEW_RUNTIME_DIR"/; then
-        rm -rf "$OLD_RUNTIME_DIR"
-        echo "<OK> Runtime von $OLD_RUNTIME_DIR nach $NEW_RUNTIME_DIR migriert."
+    if [ "$FOUND_OLD" -eq 1 ]; then
+        # cp -a erhaelt root:root - preupgrade (User loxberry) muss die Runtime
+        # spaeter per "mv" verschieben koennen, daher zurueckchownen.
+        chown -R loxberry:loxberry "$NEW_RUNTIME_DIR"
     else
-        echo "<WARNING> Migration fehlgeschlagen - $OLD_RUNTIME_DIR bleibt vorerst erhalten."
+        echo "<INFO> Keine alte Runtime/Module gefunden - Erstinstallation."
     fi
-else
-    echo "<INFO> Kein alter Runtime-Ordner gefunden."
+    remove_systemwide_leftovers
 fi
 
 exit 0
