@@ -310,10 +310,15 @@ echo "============================================================"
 export PATH="$HB_NODE_DIR/bin:$HB_NPM_GLOBAL/bin:$PATH"
 HB_SERVICE="$HB_NPM_GLOBAL/bin/hb-service"
 
-if [ ! -x "$HB_SERVICE" ]; then
+if [ ! -e "$HB_SERVICE" ]; then
     echo "FEHLER: hb-service nicht gefunden unter $HB_SERVICE"
     exit 1
 fi
+
+# Manche npm-Versionen setzen das Ausfuehrungsrecht auf die Binaries nicht
+# (beobachtet: hb-service.js bleibt 0644) - sonst scheitert der Aufruf mit
+# "Permission denied". Ausfuehrungsrecht sicherstellen.
+chmod +x "$HB_NPM_GLOBAL"/bin/* 2>/dev/null || true
 
 SERVICE_UNIT="/etc/systemd/system/homebridge.service"
 
