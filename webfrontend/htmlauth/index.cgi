@@ -27,6 +27,15 @@ if ( defined $cgi->param('ajax') && $cgi->param('ajax') eq 'status' ) {
     exit;
 }
 
+# AJAX-Endpunkt: Node-Update-Check live ausfuehren (kein Cache - laeuft bei
+# jedem Aufruf neu, damit die Anzeige nach einem Reload immer aktuell ist).
+if ( defined $cgi->param('ajax') && $cgi->param('ajax') eq 'nodecheck' ) {
+    print "Content-Type: text/plain; charset=utf-8\n\n";
+    my $checkscript = ($ENV{'LBHOMEDIR'} || '/opt/loxberry') . "/bin/plugins/homebridge/check_node_update.sh";
+    print `"$checkscript" 2>/dev/null` if -x $checkscript;
+    exit;
+}
+
 # Sprache + Texte.
 my $lang = LoxBerry::System::lblanguage() || 'en';
 my %T = $lang eq 'de'
@@ -41,7 +50,9 @@ my %T = $lang eq 'de'
         nodeto   => 'empfohlen',
         nodelink => 'Plugin-Release auf GitHub öffnen',
         nodeok   => 'Node.js-Version ist aktuell',
-        nodemodules => 'Node.js-Anforderungen der Module' )
+        nodemodules => 'Node.js-Anforderungen der Module',
+        nodechecking => 'Node.js-Version wird geprüft ...',
+        nodenotset => 'nicht angegeben' )
     : ( title  => 'Homebridge',
         running => 'Homebridge is running',
         stopped => 'Homebridge is not running',
@@ -53,75 +64,9 @@ my %T = $lang eq 'de'
         nodeto   => 'recommended',
         nodelink => 'Open plugin release on GitHub',
         nodeok   => 'Node.js version is up to date',
-        nodemodules => "Modules' Node.js requirements" );
-
-# Node-Update-Check: gecacht, damit nicht bei jedem Seitenaufruf die
-# npm-Registry und nodejs.org abgefragt werden ("ab und an" statt live).
-my $lbhomedir  = $ENV{'LBHOMEDIR'} || '/opt/loxberry';
-my $checkscript = "$lbhomedir/bin/plugins/homebridge/check_node_update.sh";
-my $cachefile    = "$lbhomedir/data/plugins/homebridge/homebridge_runtime/.node-update-check";
-my $cache_max_age = 24 * 3600;
-
-my %nodecheck;
-my $cache_age = -e $cachefile ? (time() - (stat($cachefile))[9]) : undef;
-if ( !defined($cache_age) || $cache_age > $cache_max_age ) {
-    if ( -x $checkscript ) {
-        my $out = `"$checkscript" 2>/dev/null`;
-        if ( defined $out && $out ne '' ) {
-            if ( open( my $fh, '>', $cachefile ) ) {
-                print $fh $out;
-                close $fh;
-            }
-        }
-    }
-}
-if ( open( my $fh, '<', $cachefile ) ) {
-    while ( my $line = <$fh> ) {
-        chomp $line;
-        if ( $line =~ /^([A-Z_]+)=(.*)$/ ) {
-            $nodecheck{$1} = $2;
-        }
-    }
-    close $fh;
-}
-
-my $nodebox = '';
-if ( ( $nodecheck{UPDATE_AVAILABLE} // '' ) eq '1' ) {
-    my $releaseurl = "https://github.com/blacksun80/LoxBerry-Plugin-Homebridge/releases/latest";
-    my $cur = $nodecheck{CURRENT}     // '?';
-    my $rec = $nodecheck{RECOMMENDED} // '?';
-    $nodebox = qq{
-<div id="hb-nodecard" class="update">
-  <div>$T{nodehint}: $T{nodefrom} $cur &rarr; $T{nodeto} $rec</div>
-  <div id="hb-nodelinkwrap"><a href="$releaseurl" target="_blank" rel="noopener">$T{nodelink}</a></div>
-</div>};
-}
-elsif ( exists $nodecheck{CURRENT} ) {
-    my $cur = $nodecheck{CURRENT} // '?';
-    $nodebox = qq{
-<div id="hb-nodecard" class="ok">
-  <div>$T{nodeok}: $cur</div>
-</div>};
-}
-
-# Node-Anforderungen der einzelnen Module (Homebridge, Config UI X, Plugins) auflisten.
-my $moduleslist = '';
-if ( exists $nodecheck{MODULES} && $nodecheck{MODULES} ne '' ) {
-    my @rows;
-    for my $entry ( split /;/, $nodecheck{MODULES} ) {
-        my ( $name, $range ) = split /:/, $entry, 2;
-        next unless defined $name && defined $range && $name ne '' && $range ne '';
-        push @rows, qq{<tr><td>} . $cgi->escapeHTML($name)
-                  . qq{</td><td>} . $cgi->escapeHTML($range) . qq{</td></tr>};
-    }
-    if (@rows) {
-        $moduleslist = qq{
-<div id="hb-nodemodules">
-  <div id="hb-nodemodules-title">$T{nodemodules}</div>
-  <table>@{[ join('', @rows) ]}</table>
-</div>};
-    }
-}
+        nodemodules => "Modules' Node.js requirements",
+        nodechecking => 'Checking Node.js version ...',
+        nodenotset => 'not specified' );
 
 # Host fuer den 8082-Link (Port des Aufrufs abschneiden).
 my $host = $ENV{'HTTP_HOST'} || $ENV{'SERVER_NAME'} || 'localhost';
@@ -158,7 +103,7 @@ print <<"HTML";
   #hb-nodecard.ok     { border: 1px solid rgba(63,174,75,0.5); background: rgba(63,174,75,0.08); }
   #hb-nodelinkwrap { margin-top: 0.6em; }
   #hb-nodemodules { max-width: 480px; margin: 1em auto; padding: 1em; border-radius: 10px;
-                    border: 1px solid rgba(128,128,128,0.4); font-size: 0.9em; }
+                    border: 1px solid rgba(128,128,128,0.4); font-size: 0.9em; display: none; }
   #hb-nodemodules-title { font-weight: bold; margin-bottom: 0.5em; text-align: center; }
   #hb-nodemodules table { width: 100%; border-collapse: collapse; }
   #hb-nodemodules td { padding: 0.25em 0.5em; border-top: 1px solid rgba(128,128,128,0.25); }
@@ -170,8 +115,8 @@ print <<"HTML";
   <div><span id="hb-dot"></span><span id="hb-state">...</span></div>
   <div id="hb-btnwrap">$btn</div>
 </div>
-$nodebox
-$moduleslist
+<div id="hb-nodecard"><div>$T{nodechecking}</div></div>
+<div id="hb-nodemodules"></div>
 
 <script>
 (function(){
@@ -192,6 +137,54 @@ $moduleslist
   render("$status");
   poll();
   setInterval(poll, 5000);
+
+  function escapeHtml(s){
+    var d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+  }
+  function renderNodeCheck(text){
+    var nc = {};
+    text.split('\\n').forEach(function(line){
+      var m = line.match(/^([A-Z_]+)=(.*)\$/);
+      if (m) nc[m[1]] = m[2];
+    });
+    var card = document.getElementById('hb-nodecard');
+    if (nc.UPDATE_AVAILABLE === '1') {
+      var releaseurl = "https://github.com/blacksun80/LoxBerry-Plugin-Homebridge/releases/latest";
+      card.className = 'update';
+      card.innerHTML = '<div>' + "$T{nodehint}" + ': ' + "$T{nodefrom}" + ' ' + escapeHtml(nc.CURRENT || '?')
+        + ' &rarr; ' + "$T{nodeto}" + ' ' + escapeHtml(nc.RECOMMENDED || '?') + '</div>'
+        + '<div id="hb-nodelinkwrap"><a href="' + releaseurl + '" target="_blank" rel="noopener">' + "$T{nodelink}" + '</a></div>';
+    } else if (nc.CURRENT) {
+      card.className = 'ok';
+      card.innerHTML = '<div>' + "$T{nodeok}" + ': ' + escapeHtml(nc.CURRENT) + '</div>';
+    } else {
+      card.parentNode.removeChild(card);
+    }
+
+    var modWrap = document.getElementById('hb-nodemodules');
+    if (nc.MODULES) {
+      var rows = nc.MODULES.split(';').map(function(entry){
+        var idx = entry.indexOf(':');
+        if (idx < 0) return '';
+        var name = entry.substring(0, idx), range = entry.substring(idx + 1);
+        if (!name) return '';
+        return '<tr><td>' + escapeHtml(name) + '</td><td>' + (range ? escapeHtml(range) : "$T{nodenotset}") + '</td></tr>';
+      }).join('');
+      if (rows) {
+        modWrap.innerHTML = '<div id="hb-nodemodules-title">' + "$T{nodemodules}" + '</div><table>' + rows + '</table>';
+        modWrap.style.display = '';
+      }
+    }
+  }
+  function loadNodeCheck(){
+    fetch('index.cgi?ajax=nodecheck', { cache: 'no-store' })
+      .then(function(r){ return r.text(); })
+      .then(renderNodeCheck)
+      .catch(function(){ /* Netzwerkfehler ignorieren - Karte bleibt beim "wird geprueft" */ });
+  }
+  loadNodeCheck();
 })();
 </script>
 HTML
