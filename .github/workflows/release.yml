@@ -65,7 +65,17 @@ jobs:
           set -e
           V="${{ inputs.version }}"
           CH="${{ inputs.channel }}"
+          REPO="${{ github.repository }}"
           TAG="Homebridge-V$V"
           PRE=""
           [ "$CH" = "prerelease" ] && PRE="--prerelease"
-          gh release create "$TAG" --target master --title "$TAG" --notes "$CH $V" $PRE
+
+          # Auto-generierte Notes von GitHub holen (vergleicht automatisch
+          # gegen das vorherige Release, Tag muss dafuer noch nicht existieren).
+          AUTO_NOTES=$(gh api "repos/$REPO/releases/generate-notes" \
+            -f tag_name="$TAG" -f target_commitish=master -q .body)
+
+          NOTES_FILE=$(mktemp)
+          printf '# %s\n\n\n\n%s\n' "$TAG" "$AUTO_NOTES" > "$NOTES_FILE"
+
+          gh release create "$TAG" --target master --title "$TAG" --notes-file "$NOTES_FILE" $PRE
