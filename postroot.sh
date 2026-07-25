@@ -193,7 +193,10 @@ if [ "$CURRENT_LOCAL_VERSION" != "$NODE_FULL_VERSION" ]; then
     TMP_TAR="$HB_RUNTIME_DIR/node-${NODE_FULL_VERSION}-linux-${NODE_ARCH}.tar.xz"
     NODE_DL_URL="https://nodejs.org/dist/${NODE_FULL_VERSION}/node-${NODE_FULL_VERSION}-linux-${NODE_ARCH}.tar.xz"
 
-    curl -fsSL --connect-timeout 15 --speed-time 30 --speed-limit 1024 "$NODE_DL_URL" -o "$TMP_TAR" &
+    # stdout/stderr/stdin des Hintergrund-curl vom Installer-Logfile abkoppeln
+    # (sonst haelt der Hintergrundprozess die Log-Datei offen und die Live-
+    # Anzeige friert v.a. auf LB3 ein). Der Download geht ueber -o in die Datei.
+    curl -fsSL --connect-timeout 15 --speed-time 30 --speed-limit 1024 "$NODE_DL_URL" -o "$TMP_TAR" >/dev/null 2>&1 </dev/null &
     CURL_PID=$!
     SECONDS=0
     while kill -0 "$CURL_PID" 2>/dev/null; do
@@ -271,8 +274,11 @@ else
     # gegen das neue Node neu bauen. "hb-service rebuild --all" ist der
     # offizielle Weg ("use after updating Node.js"); npm rebuild als Fallback.
     # Laeuft hier direkt als root - kein sudo noetig.
-    if [ "$NODE_CHANGED" -eq 1 ]; then
-        echo "Node-Version geaendert - npm-Module neu bauen ..."
+    # Rebuild nur, wenn ausser homebridge/config-ui-x (frisch installiert) noch
+    # nachinstallierte Plugins vorhanden sind - nur die brauchen einen Rebuild
+    # gegen das neue Node.
+    if [ "$NODE_CHANGED" -eq 1 ] && [ -n "$EXTRA_PKGS" ]; then
+        echo "Node-Version geaendert + Zusatz-Plugins vorhanden - npm-Module neu bauen ..."
         if run_with_heartbeat "Rebuild" "$NPM_INSTALL_LOG" \
                 "$HB_NPM_GLOBAL/bin/hb-service" rebuild --all; then
             echo "Rebuild abgeschlossen (hb-service rebuild --all)."
@@ -285,6 +291,8 @@ else
                 echo "<WARNING> npm rebuild ebenfalls fehlgeschlagen - Plugins ggf. in der Config-UI neu installieren."
             fi
         fi
+    elif [ "$NODE_CHANGED" -eq 1 ]; then
+        echo "Node-Version geaendert, aber keine Zusatz-Plugins - Rebuild nicht noetig."
     fi
 fi
 
