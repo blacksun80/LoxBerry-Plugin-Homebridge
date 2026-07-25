@@ -95,25 +95,33 @@ if [ -d "$NEW_NPM_GLOBAL_MODULES" ] && [ -n "$(ls -A "$NEW_NPM_GLOBAL_MODULES" 2
     # Leichen (0.3-Runtime + systemweite Reste) aufraeumen.
     echo "<INFO> Runtime am Zielpfad vorhanden - entferne nur alte Reste."
     if [ -d "$HB03_RUNTIME_DIR" ]; then
-        echo "<INFO> Entferne alte 0.3-Runtime $HB03_RUNTIME_DIR ..."
+        echo "<INFO> Entferne Runtime aus vorheriger Version ($HB03_RUNTIME_DIR) ..."
         rm -rf "$HB03_RUNTIME_DIR"
     fi
     remove_systemwide_leftovers
-    # Selbstheilung: einzelne Ordner koennen noch root-eigen sein (aeltere
-    # Migrationen vor diesem Fix) - preupgrade.sh (User loxberry) muss die
-    # Runtime aber per "mv" sichern koennen, das braucht Schreibrecht auf
-    # jedes verschobene Verzeichnis selbst (rename() aktualisiert "..").
-    chown -R loxberry:loxberry "$NEW_RUNTIME_DIR"
 
 elif [ -d "$HB03_RUNTIME_DIR" ] && [ -n "$(ls -A "$HB03_RUNTIME_DIR" 2>/dev/null)" ]; then
     # Fall 2: Keine Runtime am Zielpfad, aber eine 0.3-Runtime unter data/system.
     # Die enthaelt ein isoliertes Node - komplett uebernehmen (Node wird in
     # postroot wiederverwendet, wenn die Version passt), danach Quelle + Reste weg.
-    echo "<INFO> Uebernehme komplette 0.3-Runtime (inkl. Node) von $HB03_RUNTIME_DIR ..."
-    if mkdir -p "$NEW_RUNTIME_DIR" && cp -a "$HB03_RUNTIME_DIR"/. "$NEW_RUNTIME_DIR"/; then
-        chown -R loxberry:loxberry "$NEW_RUNTIME_DIR"
+    echo "<INFO> Uebernehme komplette Runtime aus vorheriger Version (inkl. Node) von $HB03_RUNTIME_DIR (kann je nach Groesse dauern) ..."
+    if mkdir -p "$NEW_RUNTIME_DIR" && {
+            # Hintergrund + vom Installer-Logfile abgekoppelt (>/dev/null 2>&1
+            # </dev/null), sonst friert die Live-Anzeige auf LB3 ein (haelt
+            # sonst die Log-Datei offen, siehe Node-Download in postroot.sh).
+            cp -a "$HB03_RUNTIME_DIR"/. "$NEW_RUNTIME_DIR"/ >/dev/null 2>&1 </dev/null &
+            CP_PID=$!
+            SECONDS=0
+            while kill -0 "$CP_PID" 2>/dev/null; do
+                sleep 15
+                MINS=$((SECONDS / 60)); SECS=$((SECONDS % 60))
+                CUR_SIZE=$(du -sh "$NEW_RUNTIME_DIR" 2>/dev/null | cut -f1)
+                echo "... Uebernahme laeuft (${MINS}m ${SECS}s) - bisher kopiert: ${CUR_SIZE:-0}"
+            done
+            wait "$CP_PID"
+        }; then
         rm -rf "$HB03_RUNTIME_DIR"
-        echo "<OK> 0.3-Runtime uebernommen."
+        echo "<OK> Runtime aus vorheriger Version uebernommen."
     else
         echo "<WARNING> Uebernahme fehlgeschlagen - $HB03_RUNTIME_DIR bleibt vorerst erhalten."
     fi
@@ -147,14 +155,14 @@ else
             fi
         done
     done
-    if [ "$FOUND_OLD" -eq 1 ]; then
-        # cp -a erhaelt root:root - preupgrade (User loxberry) muss die Runtime
-        # spaeter per "mv" verschieben koennen, daher zurueckchownen.
-        chown -R loxberry:loxberry "$NEW_RUNTIME_DIR"
-    else
-        echo "<INFO> Keine alte Runtime/Module gefunden - Erstinstallation."
-    fi
+    [ "$FOUND_OLD" -eq 0 ] && echo "<INFO> Keine alte Runtime/Module gefunden - Erstinstallation."
     remove_systemwide_leftovers
 fi
+
+# Alle drei Faelle koennen root-eigene Dateien in die Runtime bringen (cp -a
+# erhaelt den Besitzer der Quelle) - preupgrade.sh (User loxberry) muss sie
+# aber per "mv" sichern koennen, das braucht Schreibrecht auf jedes
+# verschobene Verzeichnis selbst (rename() aktualisiert "..").
+[ -d "$NEW_RUNTIME_DIR" ] && chown -R loxberry:loxberry "$NEW_RUNTIME_DIR"
 
 exit 0
