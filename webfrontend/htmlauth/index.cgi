@@ -173,7 +173,9 @@ print <<"HTML";
         if (idx < 0) return '';
         var name = entry.substring(0, idx), range = entry.substring(idx + 1);
         if (!name) return '';
-        return '<tr><td>' + escapeHtml(name) + '</td><td>' + (range ? escapeHtml(range) : "$T{nodenotset}") + '</td></tr>';
+        // "^22.12.0 || ^24.0.0" -> "22.12.0 / 24.0.0" (fuer Laien lesbarer als npm-Semver-Syntax).
+        var rangeText = range ? range.replace(/\\^/g, '').replace(/\\s*\\|\\|\\s*/g, ' / ') : '';
+        return '<tr><td>' + escapeHtml(name) + '</td><td>' + (rangeText ? escapeHtml(rangeText) : "$T{nodenotset}") + '</td></tr>';
       }).join('');
       if (rows) {
         modWrap.innerHTML = '<div id="hb-nodemodules-title">' + "$T{nodemodules}" + '</div><table>' + rows + '</table>';
