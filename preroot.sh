@@ -84,15 +84,22 @@ done
 
 echo ""
 echo "============================================================"
-echo "Schritt 3: Alte, externe Runtime entfernen (fruehere Skript-Version)"
+echo "Schritt 3: Alte, externe Runtime aus fruehreren Versionen migrieren"
 echo "============================================================"
 
 OLD_RUNTIME_DIR="$LBHOMEDIR/data/system/homebridge_runtime"
+NEW_RUNTIME_DIR="$LBPDATA/$PDIR/homebridge_runtime"
 
 if [ -d "$OLD_RUNTIME_DIR" ]; then
-    echo "<INFO> $OLD_RUNTIME_DIR gefunden - wird entfernt."
-    rm -rf "$OLD_RUNTIME_DIR"
-    echo "<OK> Alte Runtime entfernt."
+    if [ -d "$NEW_RUNTIME_DIR" ]; then
+        echo "<INFO> $NEW_RUNTIME_DIR existiert bereits - entferne nur $OLD_RUNTIME_DIR."
+        rm -rf "$OLD_RUNTIME_DIR"
+    elif mkdir -p "$NEW_RUNTIME_DIR" && cp -a "$OLD_RUNTIME_DIR"/. "$NEW_RUNTIME_DIR"/; then
+        rm -rf "$OLD_RUNTIME_DIR"
+        echo "<OK> Runtime von $OLD_RUNTIME_DIR nach $NEW_RUNTIME_DIR migriert."
+    else
+        echo "<WARNING> Migration fehlgeschlagen - $OLD_RUNTIME_DIR bleibt vorerst erhalten."
+    fi
 else
     echo "<INFO> Kein alter Runtime-Ordner gefunden."
 fi
