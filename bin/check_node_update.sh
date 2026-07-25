@@ -73,7 +73,12 @@ if [ -d "$HB_NPM_GLOBAL/lib/node_modules" ]; then
         pkg_json="$pkg_dir/package.json"
         [ -f "$pkg_json" ] || continue
         plugin_range=$(grep -oP '"engines"\s*:\s*\{[^}]*?"node"\s*:\s*"\K[^"]+' "$pkg_json" | head -1)
-        [ -z "$plugin_range" ] && continue
+        if [ -z "$plugin_range" ]; then
+            # Kein engines.node hinterlegt - trotzdem auflisten (leerer
+            # Bereich), nur nicht in die Versions-Einschraenkung einbeziehen.
+            MODULES="${MODULES};${pkg_name}:"
+            continue
+        fi
         MODULES="${MODULES};${pkg_name}:${plugin_range}"
         apply_constraint "$pkg_name" "$(echo "$plugin_range" | grep -oP '\^\K[0-9]+' | sort -nu)"
     done
