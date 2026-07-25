@@ -73,6 +73,17 @@ echo "============================================================"
 # (npm-Konvention: auch die heissen "homebridge-*") nicht verloren gehen.
 NEW_RUNTIME_DIR="$LBPDATA/$PDIR/homebridge_runtime"
 NEW_NPM_GLOBAL_MODULES="$NEW_RUNTIME_DIR/npm-global/lib/node_modules"
+HB03_RUNTIME_DIR="$LBHOMEDIR/data/system/homebridge_runtime"
+
+# Ist schon eine "echte" Runtime vorhanden (Zielpfad ODER der 0.3-Zwischenpfad,
+# der erst in Schritt 3 umgezogen wird)? Dann sind /usr/lib|/usr/local/lib-
+# Reste nur alte, nie aufgeraeumte 0.1/0.2-Leichen - NICHT mehr uebernehmen.
+# Sonst wuerde Schritt 3 gleich danach die echte, aktuelle 0.3-Runtime am
+# Zwischenpfad nur noch loeschen (weil der Zielpfad ja "schon existiert"),
+# statt sie zu migrieren.
+HAVE_REAL_RUNTIME=0
+[ -d "$NEW_NPM_GLOBAL_MODULES" ] && [ -n "$(ls -A "$NEW_NPM_GLOBAL_MODULES" 2>/dev/null)" ] && HAVE_REAL_RUNTIME=1
+[ -d "$HB03_RUNTIME_DIR" ] && [ -n "$(ls -A "$HB03_RUNTIME_DIR" 2>/dev/null)" ] && HAVE_REAL_RUNTIME=1
 
 FOUND_OLD=0
 for OLD_MODULES_DIR in /usr/local/lib/node_modules /usr/lib/node_modules; do
@@ -82,8 +93,8 @@ for OLD_MODULES_DIR in /usr/local/lib/node_modules /usr/lib/node_modules; do
     [ "${#OLD_HOMEBRIDGE_DIRS[@]}" -eq 0 ] && continue
     FOUND_OLD=1
 
-    if [ -d "$NEW_NPM_GLOBAL_MODULES" ] && [ -n "$(ls -A "$NEW_NPM_GLOBAL_MODULES" 2>/dev/null)" ]; then
-        echo "<INFO> $NEW_NPM_GLOBAL_MODULES existiert bereits - entferne nur $OLD_MODULES_DIR/homebridge*."
+    if [ "$HAVE_REAL_RUNTIME" -eq 1 ]; then
+        echo "<INFO> Es existiert bereits eine aktuelle Runtime (0.3+) - entferne nur die veralteten Reste in $OLD_MODULES_DIR/homebridge*."
     else
         mkdir -p "$NEW_NPM_GLOBAL_MODULES"
         for d in "${OLD_HOMEBRIDGE_DIRS[@]}"; do
