@@ -242,19 +242,45 @@ else
 
     # Nach einem Node-Wechsel alle npm-Module (inkl. nachinstallierter Plugins)
     # gegen das neue Node neu bauen. "hb-service rebuild --all" ist der offizielle
-    # Weg ("use after updating Node.js"); npm rebuild dient als Fallback.
+    # Weg ("use after updating Node.js"); npm rebuild dient als Fallback. Beides
+    # braucht root - via sudo (NOPASSWD-Freigabe in sudoers/sudoers), da ueber
+    # die Config-UI nachinstallierte Plugins root-eigen im npm-global liegen.
     if [ "$NODE_CHANGED" -eq 1 ]; then
-        # Der Rebuild braucht root: "hb-service rebuild" verlangt ausdruecklich sudo,
-        # und ueber die Config-UI nachinstallierte Plugins liegen root-eigen im
-        # npm-global (die UI installiert per "sudo -E -n npm install"). Dieses Skript
-        # laeuft aber als "loxberry" -> ohne sudo bricht hb-service ab und npm rebuild
-        # scheitert mit EACCES in den root-eigenen Plugin-Ordnern.
-        # Der Rebuild braucht root ("hb-service rebuild" verlangt es, und ueber die
-        # Config-UI nachinstallierte Plugins liegen root-eigen im npm-global).
-        # Dieses Skript laeuft als "loxberry" ohne passwortloses sudo, deshalb hier
-        # nur markieren - den Rebuild erledigt postroot.sh (laeuft als root, danach).
-        touch "$HB_RUNTIME_DIR/.rebuild-required"
-        echo "Node gewechselt - Rebuild wird gleich als root ausgefuehrt (siehe unten)."
+        echo "Node-Version geaendert - npm-Module neu bauen ..."
+        # chown braucht hier sudo, OBWOHL loxberry schon der SKRIPT-User ist: die
+        # Dateien gehoeren aktuell root (Config-UI installiert Plugins per sudo;
+        # der Rebuild unten laeuft ebenfalls per sudo) - fremde Dateien darf nur
+        # root umchownen, egal welcher Zieleigentuemer gewuenscht ist.
+        sudo -n chown -R loxberry:loxberry "$HB_RUNTIME_DIR" 2>&1 | tee -a "$NPM_INSTALL_LOG"
+
+        run_with_heartbeat() {
+            local label="$1"; shift
+            "$@" >> "$NPM_INSTALL_LOG" 2>&1 &
+            local pid=$! mins secs last
+            SECONDS=0
+            while kill -0 "$pid" 2>/dev/null; do
+                sleep 15
+                mins=$((SECONDS / 60)); secs=$((SECONDS % 60))
+                last=$(tail -n 1 "$NPM_INSTALL_LOG" 2>/dev/null)
+                echo "... $label laeuft (${mins}m ${secs}s) - zuletzt: ${last:-...}"
+            done
+            wait "$pid"
+        }
+
+        if run_with_heartbeat "Rebuild" sudo -n "$HB_NPM_GLOBAL/bin/hb-service" rebuild --all; then
+            echo "Rebuild abgeschlossen (hb-service rebuild --all)."
+        else
+            echo "<WARNING> hb-service rebuild --all fehlgeschlagen - versuche 'npm rebuild' ..."
+            # --unsafe-perm: laeuft via sudo als root, sonst reduzierte Rechte beim
+            # Ausfuehren der Build-Skripte (EACCES in root-eigenen Plugin-Ordnern).
+            if run_with_heartbeat "npm rebuild" sudo -n "$LOCAL_NPM" rebuild -g \
+                    --prefix "$HB_NPM_GLOBAL" --cache "$NPM_CACHE_DIR" --unsafe-perm; then
+                echo "Rebuild abgeschlossen (npm rebuild)."
+            else
+                echo "<WARNING> npm rebuild ebenfalls fehlgeschlagen - Plugins ggf. in der Config-UI neu installieren."
+            fi
+            sudo -n chown -R loxberry:loxberry "$HB_RUNTIME_DIR" 2>&1 | tee -a "$NPM_INSTALL_LOG"
+        fi
     fi
 fi
 

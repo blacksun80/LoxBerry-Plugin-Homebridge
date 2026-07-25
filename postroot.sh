@@ -4,9 +4,10 @@
 # Laeuft als User "root", ganz am Ende der Installation/des Updates.
 #
 # Schritt 1: System-Node/npm pruefen (betrifft nicht Homebridge selbst).
-# Schritt 2: npm-Module neu bauen, falls postinstall.sh einen Node-Wechsel
-#            markiert hat (braucht root, deshalb hier statt in postinstall.sh).
-# Schritt 3: hb-service einrichten/neu starten.
+# Schritt 2: hb-service einrichten/neu starten.
+#
+# npm-Rebuild nach Node-Wechsel: passiert in postinstall.sh (User loxberry),
+# nicht hier - sudoers/sudoers gibt dafuer eine gezielte NOPASSWD-Freigabe.
 #
 # sudoers-Eintrag: siehe sudoers/sudoers (nativer LoxBerry-Mechanismus).
 #
@@ -75,61 +76,10 @@ show_node "System-Node /usr/local/bin/node" /usr/local/bin/node
 
 echo ""
 echo "============================================================"
-echo "Schritt 2: npm-Module neu bauen (nur nach Node-Wechsel)"
+echo "Schritt 2: hb-service einrichten (Storage: $HB_STORAGE_DIR)"
 echo "============================================================"
 
 export PATH="$HB_NODE_DIR/bin:$HB_NPM_GLOBAL/bin:$PATH"
-REBUILD_FLAG="$HB_RUNTIME_DIR/.rebuild-required"
-
-if [ -f "$REBUILD_FLAG" ]; then
-    NPM_INSTALL_LOG="$HB_RUNTIME_DIR/npm-install.log"
-
-    # Ueber die Config-UI nachinstallierte Plugins liegen root-eigen (die UI
-    # installiert per "sudo npm"); der Dienst laeuft aber als "loxberry".
-    chown -R loxberry:loxberry "$HB_RUNTIME_DIR" 2>/dev/null || true
-
-    # Rebuild im Hintergrund + Heartbeat, sonst steht die Anzeige im
-    # LoxBerry-Log minutenlang still (Ausgabe geht komplett ins Logfile).
-    run_with_heartbeat() {
-        local label="$1"; shift
-        "$@" >> "$NPM_INSTALL_LOG" 2>&1 &
-        local pid=$! mins secs last
-        SECONDS=0
-        while kill -0 "$pid" 2>/dev/null; do
-            sleep 15
-            mins=$((SECONDS / 60)); secs=$((SECONDS % 60))
-            last=$(tail -n 1 "$NPM_INSTALL_LOG" 2>/dev/null)
-            echo "... $label laeuft (${mins}m ${secs}s) - zuletzt: ${last:-...}"
-        done
-        wait "$pid"
-    }
-
-    echo "Node-Wechsel erkannt - alle npm-Module gegen das neue Node neu bauen ..."
-    if run_with_heartbeat "Rebuild" "$HB_NPM_GLOBAL/bin/hb-service" rebuild --all; then
-        echo "Rebuild abgeschlossen (hb-service rebuild --all)."
-    else
-        echo "<WARNING> hb-service rebuild --all fehlgeschlagen - versuche 'npm rebuild' ..."
-        # --unsafe-perm: npm laeuft hier als root und wuerde die Build-Skripte
-        # sonst mit reduzierten Rechten ausfuehren (schlaegt mit EACCES fehl).
-        if run_with_heartbeat "npm rebuild" "$HB_NODE_DIR/bin/npm" rebuild -g \
-                --prefix "$HB_NPM_GLOBAL" --cache "$HB_RUNTIME_DIR/.npm-cache" --unsafe-perm; then
-            echo "Rebuild abgeschlossen (npm rebuild)."
-        else
-            echo "<WARNING> npm rebuild ebenfalls mit Fehlern - Plugins ggf. in der Config-UI neu installieren."
-        fi
-    fi
-
-    chown -R loxberry:loxberry "$HB_RUNTIME_DIR" 2>/dev/null || true
-    rm -f "$REBUILD_FLAG"
-else
-    echo "Kein Node-Wechsel - Rebuild nicht noetig."
-fi
-
-echo ""
-echo "============================================================"
-echo "Schritt 3: hb-service einrichten (Storage: $HB_STORAGE_DIR)"
-echo "============================================================"
-
 HB_SERVICE="$HB_NPM_GLOBAL/bin/hb-service"
 
 if [ ! -x "$HB_SERVICE" ]; then

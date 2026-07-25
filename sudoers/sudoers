@@ -7,3 +7,9 @@
 # Setzt secure_path fuer "loxberry" auf die isolierte Node-Runtime plus den
 # Standard-PATH (wird von "sudo -E -n npm install ..." der Config-UI genutzt).
 Defaults:loxberry secure_path="REPLACELBPDATADIR/homebridge_runtime/nodejs/bin:REPLACELBPDATADIR/homebridge_runtime/npm-global/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
+# NOPASSWD-Rechte, damit postinstall.sh (laeuft als "loxberry") nach einem
+# Node-Wechsel die Runtime umchownen und npm-Module neu bauen kann - beides
+# verlangt root.
+%loxberry ALL = NOPASSWD: /usr/bin/chown -R loxberry\:loxberry REPLACELBPDATADIR/homebridge_runtime
+%loxberry ALL = NOPASSWD: REPLACELBPDATADIR/homebridge_runtime/npm-global/bin/hb-service
