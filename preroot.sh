@@ -87,12 +87,18 @@ for OLD_MODULES_DIR in /usr/local/lib/node_modules /usr/lib/node_modules; do
     else
         mkdir -p "$NEW_NPM_GLOBAL_MODULES"
         for d in "${OLD_HOMEBRIDGE_DIRS[@]}"; do
+            echo "<INFO> Migriere $(basename "$d") von $OLD_MODULES_DIR nach $NEW_NPM_GLOBAL_MODULES (kann je nach Groesse dauern) ..."
             if cp -a "$d" "$NEW_NPM_GLOBAL_MODULES"/; then
-                echo "<OK> $(basename "$d") von $OLD_MODULES_DIR nach $NEW_NPM_GLOBAL_MODULES migriert."
+                echo "<OK> $(basename "$d") migriert."
             else
                 echo "<WARNING> Migration von $d fehlgeschlagen."
             fi
         done
+        # cp -a erhaelt den root:root-Besitz der Quelle - preupgrade.sh
+        # (User loxberry) muesste die Runtime spaeter aber per "mv"
+        # verschieben koennen, dafuer braucht es Schreibrecht auf das
+        # Verzeichnis selbst (rename() aktualisiert den ".."-Eintrag).
+        chown -R loxberry:loxberry "$NEW_RUNTIME_DIR"
     fi
 
     for d in "${OLD_HOMEBRIDGE_DIRS[@]}"; do
