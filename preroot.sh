@@ -4,8 +4,9 @@
 # Laeuft als User "root", VOR dem Loeschen der alten Plugin-Ordner.
 #
 # Schritt 1: Homebridge stoppen, Port 8082 freigeben.
-# Schritt 2: Alte systemweite npm-Installation entfernen (falls vorhanden).
-# Schritt 3: Alte, externe Runtime aus fruehreren Versionen entfernen (falls vorhanden).
+# Schritt 2: Alte systemweite npm-Installation (0.1/0.2) in die neue,
+#            isolierte Runtime migrieren (falls vorhanden).
+# Schritt 3: Alte, externe Runtime aus fruehreren Versionen (0.3) migrieren (falls vorhanden).
 #
 # Argumente: command <TEMPFOLDER> <NAME> <FOLDER> <VERSION> <BASEFOLDER> <TEMPPATH>
 
@@ -60,22 +61,48 @@ fi
 
 echo ""
 echo "============================================================"
-echo "Schritt 2: Alte, systemweite Homebridge-Installation entfernen"
+echo "Schritt 2: Alte, systemweite Homebridge-Installation migrieren"
 echo "============================================================"
 
-shopt -s nullglob
-OLD_HOMEBRIDGE_DIRS=(/usr/local/lib/node_modules/homebridge*)
-shopt -u nullglob
+# Node 0.1/0.2 installierte per "npm install -g" in den System-Node-Praefix.
+# Je nach Debian-Basisversion liegt der unter /usr/local (Bookworm/Trixie,
+# DietPi-Node) oder /usr (Buster/Bullseye, NodeSource-Node) - siehe
+# Claude_Gedaechtnis/LoxBerry/Node-Version-je-Debian.md. Das Node-Binary
+# selbst bleibt unangetastet (die neue Runtime laedt sich ihr eigenes);
+# migriert werden nur die node_modules, damit nachinstallierte Plugins
+# (npm-Konvention: auch die heissen "homebridge-*") nicht verloren gehen.
+NEW_RUNTIME_DIR="$LBPDATA/$PDIR/homebridge_runtime"
+NEW_NPM_GLOBAL_MODULES="$NEW_RUNTIME_DIR/npm-global/lib/node_modules"
 
-if [ "${#OLD_HOMEBRIDGE_DIRS[@]}" -eq 0 ]; then
-    echo "<INFO> Keine alten systemweiten homebridge*-Ordner gefunden."
-else
+FOUND_OLD=0
+for OLD_MODULES_DIR in /usr/local/lib/node_modules /usr/lib/node_modules; do
+    shopt -s nullglob
+    OLD_HOMEBRIDGE_DIRS=("$OLD_MODULES_DIR"/homebridge*)
+    shopt -u nullglob
+    [ "${#OLD_HOMEBRIDGE_DIRS[@]}" -eq 0 ] && continue
+    FOUND_OLD=1
+
+    if [ -d "$NEW_NPM_GLOBAL_MODULES" ] && [ -n "$(ls -A "$NEW_NPM_GLOBAL_MODULES" 2>/dev/null)" ]; then
+        echo "<INFO> $NEW_NPM_GLOBAL_MODULES existiert bereits - entferne nur $OLD_MODULES_DIR/homebridge*."
+    else
+        mkdir -p "$NEW_NPM_GLOBAL_MODULES"
+        for d in "${OLD_HOMEBRIDGE_DIRS[@]}"; do
+            if cp -a "$d" "$NEW_NPM_GLOBAL_MODULES"/; then
+                echo "<OK> $(basename "$d") von $OLD_MODULES_DIR nach $NEW_NPM_GLOBAL_MODULES migriert."
+            else
+                echo "<WARNING> Migration von $d fehlgeschlagen."
+            fi
+        done
+    fi
+
     for d in "${OLD_HOMEBRIDGE_DIRS[@]}"; do
         echo "<INFO> Entferne $d ..."
         rm -rf "$d"
     done
-fi
-for b in /usr/local/bin/homebridge /usr/local/bin/hb-service; do
+done
+[ "$FOUND_OLD" -eq 0 ] && echo "<INFO> Keine alten systemweiten homebridge*-Ordner gefunden."
+
+for b in /usr/local/bin/homebridge /usr/local/bin/hb-service /usr/bin/homebridge /usr/bin/hb-service; do
     if [ -e "$b" ]; then
         echo "<INFO> Entferne Symlink $b ..."
         rm -f "$b"
