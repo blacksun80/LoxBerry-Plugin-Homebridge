@@ -103,6 +103,7 @@ print <<"HTML";
                  text-align: center; font-size: 0.95em; }
   #hb-nodecard.update { border: 1px solid rgba(255,180,0,0.6); background: rgba(255,180,0,0.08); }
   #hb-nodecard.ok     { border: 1px solid rgba(63,174,75,0.5); background: rgba(63,174,75,0.08); }
+  #hb-nodecard.error  { border: 1px solid rgba(211,51,51,0.5); background: rgba(211,51,51,0.08); }
   #hb-nodelinkwrap { margin-top: 0.6em; }
   #hb-nodemodules { max-width: 480px; margin: 1em auto; padding: 1em; border-radius: 10px;
                     border: 1px solid rgba(128,128,128,0.4); font-size: 0.9em; display: none; }
@@ -180,11 +181,19 @@ print <<"HTML";
       }
     }
   }
+  function showNodeError(){
+    var card = document.getElementById('hb-nodecard');
+    card.className = 'error';
+    card.innerHTML = '<div>' + "$T{nodeerror}" + '</div>';
+  }
   function loadNodeCheck(){
     fetch('index.cgi?ajax=nodecheck', { cache: 'no-store' })
       .then(function(r){ return r.text(); })
-      .then(renderNodeCheck)
-      .catch(function(){ /* Netzwerkfehler ignorieren - Karte bleibt beim "wird geprueft" */ });
+      .then(function(text){
+        if (!text || !text.trim()) { showNodeError(); return; }
+        renderNodeCheck(text);
+      })
+      .catch(showNodeError);
   }
   loadNodeCheck();
 })();
