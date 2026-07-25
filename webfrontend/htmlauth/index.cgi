@@ -39,7 +39,8 @@ my %T = $lang eq 'de'
         nodehint => 'Eine neue, mit Homebridge, Config UI X und allen installierten Plugins gemeinsam kompatible Node.js-Version ist verfügbar',
         nodefrom => 'aktuell',
         nodeto   => 'empfohlen',
-        nodelink => 'Plugin-Release auf GitHub öffnen' )
+        nodelink => 'Plugin-Release auf GitHub öffnen',
+        nodeok   => 'Node.js-Version ist aktuell' )
     : ( title  => 'Homebridge',
         running => 'Homebridge is running',
         stopped => 'Homebridge is not running',
@@ -49,7 +50,8 @@ my %T = $lang eq 'de'
         nodehint => 'A newer Node.js version compatible with Homebridge, Config UI X and all installed plugins is available',
         nodefrom => 'current',
         nodeto   => 'recommended',
-        nodelink => 'Open plugin release on GitHub' );
+        nodelink => 'Open plugin release on GitHub',
+        nodeok   => 'Node.js version is up to date' );
 
 # Node-Update-Check: gecacht, damit nicht bei jedem Seitenaufruf die
 # npm-Registry und nodejs.org abgefragt werden ("ab und an" statt live).
@@ -87,9 +89,16 @@ if ( ( $nodecheck{UPDATE_AVAILABLE} // '' ) eq '1' ) {
     my $cur = $nodecheck{CURRENT}     // '?';
     my $rec = $nodecheck{RECOMMENDED} // '?';
     $nodebox = qq{
-<div id="hb-nodecard">
+<div id="hb-nodecard" class="update">
   <div>$T{nodehint}: $T{nodefrom} $cur &rarr; $T{nodeto} $rec</div>
   <div id="hb-nodelinkwrap"><a href="$releaseurl" target="_blank" rel="noopener">$T{nodelink}</a></div>
+</div>};
+}
+elsif ( exists $nodecheck{CURRENT} ) {
+    my $cur = $nodecheck{CURRENT} // '?';
+    $nodebox = qq{
+<div id="hb-nodecard" class="ok">
+  <div>$T{nodeok}: $cur</div>
 </div>};
 }
 
@@ -123,8 +132,9 @@ print <<"HTML";
   #hb-dot.bad { background: #d33; }
   #hb-btnwrap { margin-top: 1em; }
   #hb-nodecard { max-width: 480px; margin: 1em auto; padding: 1em; border-radius: 10px;
-                 border: 1px solid rgba(255,180,0,0.6); background: rgba(255,180,0,0.08);
                  text-align: center; font-size: 0.95em; }
+  #hb-nodecard.update { border: 1px solid rgba(255,180,0,0.6); background: rgba(255,180,0,0.08); }
+  #hb-nodecard.ok     { border: 1px solid rgba(63,174,75,0.5); background: rgba(63,174,75,0.08); }
   #hb-nodelinkwrap { margin-top: 0.6em; }
 </style>
 
