@@ -10,6 +10,7 @@
 #   RECOMMENDED=<empfohlene Node-Version>
 #   UPDATE_AVAILABLE=0|1
 #   LIMITING=<Pakete, die die Auswahl einschraenken; "(!)" = Konflikt ignoriert>
+#   MODULES=<name>:<node-engines-range>;<name>:<node-engines-range>;... (fuer die GUI)
 
 PDIR="homebridge"
 LBPDATA="${LBPDATA:-${LBHOMEDIR:-/opt/loxberry}/data/plugins}"
@@ -40,6 +41,7 @@ fi
 
 MAJORS=$(echo "$REQUIRED_RANGE_UI" | grep -oP '\^\K[0-9]+' | sort -nu)
 LIMITING="homebridge-config-ui-x"
+MODULES="homebridge-config-ui-x:${REQUIRED_RANGE_UI};homebridge:${REQUIRED_RANGE_HB}"
 
 # Schneidet $MAJORS mit den Majors eines weiteren Pakets. Kein Ueberlappung
 # gefunden = Konflikt, wird nur vermerkt (Paket als "(!)" markiert), $MAJORS
@@ -72,6 +74,7 @@ if [ -d "$HB_NPM_GLOBAL/lib/node_modules" ]; then
         [ -f "$pkg_json" ] || continue
         plugin_range=$(grep -oP '"engines"\s*:\s*\{[^}]*?"node"\s*:\s*"\K[^"]+' "$pkg_json" | head -1)
         [ -z "$plugin_range" ] && continue
+        MODULES="${MODULES};${pkg_name}:${plugin_range}"
         apply_constraint "$pkg_name" "$(echo "$plugin_range" | grep -oP '\^\K[0-9]+' | sort -nu)"
     done
 fi
@@ -80,6 +83,7 @@ CANDIDATE_MAJORS=$(echo "$MAJORS" | sort -rn)
 if [ -z "$CANDIDATE_MAJORS" ]; then
     echo "CURRENT=$CURRENT_LOCAL_VERSION"
     echo "UPDATE_AVAILABLE=0"
+    echo "MODULES=$MODULES"
     exit 0
 fi
 
@@ -103,4 +107,5 @@ if [ -n "$RECOMMENDED" ] && [ "$RECOMMENDED" != "$CURRENT_LOCAL_VERSION" ]; then
 else
     echo "UPDATE_AVAILABLE=0"
 fi
+echo "MODULES=$MODULES"
 exit 0

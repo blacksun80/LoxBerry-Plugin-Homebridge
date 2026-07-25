@@ -40,7 +40,8 @@ my %T = $lang eq 'de'
         nodefrom => 'aktuell',
         nodeto   => 'empfohlen',
         nodelink => 'Plugin-Release auf GitHub öffnen',
-        nodeok   => 'Node.js-Version ist aktuell' )
+        nodeok   => 'Node.js-Version ist aktuell',
+        nodemodules => 'Node.js-Anforderungen der Module' )
     : ( title  => 'Homebridge',
         running => 'Homebridge is running',
         stopped => 'Homebridge is not running',
@@ -51,7 +52,8 @@ my %T = $lang eq 'de'
         nodefrom => 'current',
         nodeto   => 'recommended',
         nodelink => 'Open plugin release on GitHub',
-        nodeok   => 'Node.js version is up to date' );
+        nodeok   => 'Node.js version is up to date',
+        nodemodules => "Modules' Node.js requirements" );
 
 # Node-Update-Check: gecacht, damit nicht bei jedem Seitenaufruf die
 # npm-Registry und nodejs.org abgefragt werden ("ab und an" statt live).
@@ -102,6 +104,25 @@ elsif ( exists $nodecheck{CURRENT} ) {
 </div>};
 }
 
+# Node-Anforderungen der einzelnen Module (Homebridge, Config UI X, Plugins) auflisten.
+my $moduleslist = '';
+if ( exists $nodecheck{MODULES} && $nodecheck{MODULES} ne '' ) {
+    my @rows;
+    for my $entry ( split /;/, $nodecheck{MODULES} ) {
+        my ( $name, $range ) = split /:/, $entry, 2;
+        next unless defined $name && defined $range && $name ne '' && $range ne '';
+        push @rows, qq{<tr><td>} . $cgi->escapeHTML($name)
+                  . qq{</td><td>} . $cgi->escapeHTML($range) . qq{</td></tr>};
+    }
+    if (@rows) {
+        $moduleslist = qq{
+<div id="hb-nodemodules">
+  <div id="hb-nodemodules-title">$T{nodemodules}</div>
+  <table>@{[ join('', @rows) ]}</table>
+</div>};
+    }
+}
+
 # Host fuer den 8082-Link (Port des Aufrufs abschneiden).
 my $host = $ENV{'HTTP_HOST'} || $ENV{'SERVER_NAME'} || 'localhost';
 $host =~ s/:\d+$//;
@@ -136,6 +157,13 @@ print <<"HTML";
   #hb-nodecard.update { border: 1px solid rgba(255,180,0,0.6); background: rgba(255,180,0,0.08); }
   #hb-nodecard.ok     { border: 1px solid rgba(63,174,75,0.5); background: rgba(63,174,75,0.08); }
   #hb-nodelinkwrap { margin-top: 0.6em; }
+  #hb-nodemodules { max-width: 480px; margin: 1em auto; padding: 1em; border-radius: 10px;
+                    border: 1px solid rgba(128,128,128,0.4); font-size: 0.9em; }
+  #hb-nodemodules-title { font-weight: bold; margin-bottom: 0.5em; text-align: center; }
+  #hb-nodemodules table { width: 100%; border-collapse: collapse; }
+  #hb-nodemodules td { padding: 0.25em 0.5em; border-top: 1px solid rgba(128,128,128,0.25); }
+  #hb-nodemodules td:first-child { font-weight: bold; }
+  #hb-nodemodules td:last-child { text-align: right; color: #888; }
 </style>
 
 <div id="hb-card">
@@ -143,6 +171,7 @@ print <<"HTML";
   <div id="hb-btnwrap">$btn</div>
 </div>
 $nodebox
+$moduleslist
 
 <script>
 (function(){
