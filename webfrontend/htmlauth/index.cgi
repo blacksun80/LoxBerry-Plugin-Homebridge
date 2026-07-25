@@ -52,7 +52,8 @@ my %T = $lang eq 'de'
         nodeok   => 'Node.js-Version ist aktuell',
         nodemodules => 'Node.js-Anforderungen der Module',
         nodechecking => 'Node.js-Version wird geprüft ...',
-        nodenotset => 'nicht angegeben' )
+        nodenotset => 'nicht angegeben',
+        nodeerror => 'Node.js-Version konnte nicht geprüft werden' )
     : ( title  => 'Homebridge',
         running => 'Homebridge is running',
         stopped => 'Homebridge is not running',
@@ -66,7 +67,8 @@ my %T = $lang eq 'de'
         nodeok   => 'Node.js version is up to date',
         nodemodules => "Modules' Node.js requirements",
         nodechecking => 'Checking Node.js version ...',
-        nodenotset => 'not specified' );
+        nodenotset => 'not specified',
+        nodeerror => 'Could not check Node.js version' );
 
 # Host fuer den 8082-Link (Port des Aufrufs abschneiden).
 my $host = $ENV{'HTTP_HOST'} || $ENV{'SERVER_NAME'} || 'localhost';
