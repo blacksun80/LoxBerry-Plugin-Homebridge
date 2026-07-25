@@ -56,10 +56,8 @@ Sicherungen aufgeräumt. Ein vorhandenes System-Node wird nicht angefasst.
 
 ## Hinweise zur Technik
 
-Details zum internen Ablauf (Installationsskripte, Pfade, Kompatibilität) stehen in
-[CLAUDE.md](CLAUDE.md).
-
 ## Weiterführende Links
 
 - LoxBerry-Wiki: <https://wiki.loxberry.de/plugins/homebridge/start>
+- Forum-Thread: <https://www.loxforum.com/forum/projektforen/loxberry/plugins/337099-homebridge-plugin-zur-einfacher-installation-von-homebridge-auf-dem-loxberry>
 - Homebridge: <https://homebridge.io/>
