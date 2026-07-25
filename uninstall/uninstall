@@ -3,12 +3,15 @@
 #
 # Laeuft als User "root", am Ende einer Deinstallation.
 #
-# Raeumt nur Dinge auf, die AUSSERHALB des Plugin-Ordners liegen. Config,
-# Data (inkl. Runtime) usw. innerhalb des Plugin-Ordners loescht der
-# LoxBerry-Installer selbst.
+# Raeumt Dinge auf, die AUSSERHALB des Plugin-Ordners liegen, UND die Runtime
+# selbst: die enthaelt teils root-eigene Dateien (z.B. nachinstallierte
+# Homebridge-Plugins, die per npm als root gebaut wurden) - LoxBerrys eigene
+# Loeschung des Plugin-Ordners laeuft als User "loxberry" und kann die nicht
+# entfernen. Deshalb hier vorab als root loeschen.
 #
 # Schritt 1: Homebridge-Dienst stoppen und deinstallieren (systemd-Unit).
-# Schritt 2: Backup-Ordner (Config + Runtime) loeschen.
+# Schritt 2: Runtime loeschen (kann root-eigene Dateien enthalten).
+# Schritt 3: Backup-Ordner (Config + Runtime) loeschen.
 #
 # Argumente: command <TEMPFOLDER> <NAME> <FOLDER> <VERSION> <BASEFOLDER>
 
@@ -48,7 +51,19 @@ fi
 
 echo ""
 echo "============================================================"
-echo "Schritt 2: Backup-Ordner loeschen"
+echo "Schritt 2: Runtime loeschen"
+echo "============================================================"
+
+if [ -d "$HB_RUNTIME_DIR" ]; then
+    echo "<INFO> Entferne $HB_RUNTIME_DIR."
+    rm -rf "$HB_RUNTIME_DIR"
+else
+    echo "<INFO> Keine Runtime vorhanden."
+fi
+
+echo ""
+echo "============================================================"
+echo "Schritt 3: Backup-Ordner loeschen"
 echo "============================================================"
 
 if [ -d "$BACKUP_ROOT" ]; then

@@ -99,6 +99,11 @@ if [ -d "$NEW_NPM_GLOBAL_MODULES" ] && [ -n "$(ls -A "$NEW_NPM_GLOBAL_MODULES" 2
         rm -rf "$HB03_RUNTIME_DIR"
     fi
     remove_systemwide_leftovers
+    # Selbstheilung: einzelne Ordner koennen noch root-eigen sein (aeltere
+    # Migrationen vor diesem Fix) - preupgrade.sh (User loxberry) muss die
+    # Runtime aber per "mv" sichern koennen, das braucht Schreibrecht auf
+    # jedes verschobene Verzeichnis selbst (rename() aktualisiert "..").
+    chown -R loxberry:loxberry "$NEW_RUNTIME_DIR"
 
 elif [ -d "$HB03_RUNTIME_DIR" ] && [ -n "$(ls -A "$HB03_RUNTIME_DIR" 2>/dev/null)" ]; then
     # Fall 2: Keine Runtime am Zielpfad, aber eine 0.3-Runtime unter data/system.
