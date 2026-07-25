@@ -177,7 +177,7 @@ print <<"HTML";
       }).join('');
       if (rows) {
         modWrap.innerHTML = '<div id="hb-nodemodules-title">' + "$T{nodemodules}" + '</div><table>' + rows + '</table>';
-        modWrap.style.display = '';
+        modWrap.style.display = 'block';
       }
     }
   }
