@@ -1,0 +1,71 @@
+name: Release / Prerelease
+
+# Manuell ausloesen: Actions-Tab -> "Release / Prerelease" -> Run workflow
+# -> Version + Kanal (release/prerelease) angeben.
+#
+# Was passiert:
+#   1. plugin.cfg VERSION auf die neue Version setzen.
+#   2. release.cfg ODER prerelease.cfg aktualisieren (VERSION, ARCHIVEURL=Tag-Zip, INFOURL).
+#   3. Aenderungen nach master committen + pushen.
+#   4. Tag "Homebridge-V<version>" + GitHub-Release erzeugen (Prerelease-Flag bei Kanal=prerelease).
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version (z.B. 0.5 oder 0.4.99)"
+        required: true
+      channel:
+        description: "Kanal"
+        required: true
+        type: choice
+        default: prerelease
+        options:
+          - release
+          - prerelease
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Version + cfg aktualisieren
+        run: |
+          set -e
+          V="${{ inputs.version }}"
+          CH="${{ inputs.channel }}"
+          REPO="${{ github.repository }}"
+          TAG="Homebridge-V$V"
+          ZIP="https://github.com/$REPO/archive/refs/tags/$TAG.zip"
+          INFO="https://github.com/$REPO/releases/tag/$TAG"
+
+          # Plugin-Version
+          sed -i "s/^VERSION=.*/VERSION=$V/" plugin.cfg
+
+          # Kanal-cfg (release.cfg oder prerelease.cfg)
+          CFG="$CH.cfg"
+          sed -i \
+            -e "s/^VERSION=.*/VERSION=$V/" \
+            -e "s#^ARCHIVEURL=.*#ARCHIVEURL=$ZIP#" \
+            -e "s#^INFOURL=.*#INFOURL=$INFO#" \
+            "$CFG"
+
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git commit -am "$CH $V" || echo "Keine Aenderung zu committen."
+          git push
+
+      - name: Tag + GitHub-Release erzeugen
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          V="${{ inputs.version }}"
+          CH="${{ inputs.channel }}"
+          TAG="Homebridge-V$V"
+          PRE=""
+          [ "$CH" = "prerelease" ] && PRE="--prerelease"
+          gh release create "$TAG" --target master --title "$TAG" --notes "$CH $V" $PRE
