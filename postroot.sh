@@ -82,6 +82,15 @@ fi
 echo "Geraet:      ${HW_MODEL:-unbekannt}"
 echo "OS:          ${PRETTY_NAME:-unbekannt}"
 echo "Architektur: $(uname -m)"
+echo "glibc:       $(ldd --version 2>/dev/null | head -n 1 | grep -oE '[0-9]+\.[0-9]+$' || echo unbekannt)"
+# Hoechste GLIBCXX-Version der System-libstdc++ (bestimmt, welche Node-Binaries starten).
+GLIBCXX_MAX=""
+for LIBSTDCXX in /usr/lib/*/libstdc++.so.6 /usr/lib64/libstdc++.so.6 /lib/*/libstdc++.so.6; do
+    [ -e "$LIBSTDCXX" ] || continue
+    GLIBCXX_MAX=$(grep -ao 'GLIBCXX_[0-9][0-9.]*' "$LIBSTDCXX" 2>/dev/null | sort -uV | tail -n 1)
+    [ -n "$GLIBCXX_MAX" ] && break
+done
+echo "libstdc++:   ${GLIBCXX_MAX:-unbekannt}"
 
 echo ""
 echo "============================================================"
@@ -218,7 +227,30 @@ if [ "$CURRENT_LOCAL_VERSION" != "$NODE_FULL_VERSION" ]; then
     tar -xJf "$TMP_TAR" -C "$HB_NODE_DIR" --strip-components=1
     rm -f "$TMP_TAR"
     NODE_CHANGED=1
-    echo "Node installiert: $("$HB_NODE_DIR/bin/node" -v)"
+
+    # Startpruefung des geladenen Node-Binaries.
+    NODE_TEST_OUT=$("$HB_NODE_DIR/bin/node" -v 2>&1)
+    NODE_TEST_RC=$?
+    if [ "$NODE_TEST_RC" -ne 0 ] || ! printf '%s' "$NODE_TEST_OUT" | grep -qE '^v[0-9]+\.'; then
+        echo ""
+        echo "<ERROR> Node $NODE_FULL_VERSION wurde geladen, startet auf diesem System aber nicht."
+        echo "<ERROR> Meldung: $(printf '%s' "$NODE_TEST_OUT" | head -n 1)"
+        if printf '%s' "$NODE_TEST_OUT" | grep -q 'GLIBCXX\|GLIBC_'; then
+            echo "<ERROR> Ursache: Die System-Bibliotheken (libstdc++ ${GLIBCXX_MAX:-?}) sind zu alt fuer Node $TARGET_MAJOR."
+        fi
+        if [ "$ARCH" = "armv7l" ] && [ "${VERSION_ID:-}" = "10" ]; then
+            echo "<ERROR> LoxBerry 2 (Debian 10 Buster) auf 32-Bit-ARM wird nicht mehr unterstuetzt:"
+            echo "<ERROR> Node.js ab Version 20 benoetigt dort mindestens Debian 11, aktuelles"
+            echo "<ERROR> Homebridge/Config UI X benoetigen Node.js $TARGET_MAJOR."
+            echo "<ERROR> Bitte LoxBerry auf Version 3 oder neuer aktualisieren (am besten Neuinstallation)."
+        else
+            echo "<ERROR> Bitte das Betriebssystem bzw. LoxBerry aktualisieren."
+        fi
+        echo "<ERROR> Installation wird abgebrochen."
+        rm -rf "$HB_NODE_DIR"
+        exit 1
+    fi
+    echo "Node installiert: $NODE_TEST_OUT"
 else
     echo "Node ist aktuell ($CURRENT_LOCAL_VERSION) - wird wiederverwendet."
 fi
