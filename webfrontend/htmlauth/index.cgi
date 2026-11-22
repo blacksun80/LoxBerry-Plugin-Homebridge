@@ -49,6 +49,8 @@ my %T = $lang eq 'de'
         nodefrom => 'aktuell',
         nodeto   => 'empfohlen',
         nodelink => 'Plugin-Release auf GitHub öffnen',
+        nodehow  => 'Node.js wird bei der Plugin-Installation eingerichtet. Zum Wechsel das Plugin einfach erneut über die bestehende Installation installieren (ZIP der aktuellen Version in der Plugin-Verwaltung einspielen, nicht vorher deinstallieren). Konfiguration, Pairings und nachinstallierte Plugins bleiben erhalten.',
+        nodeplugins => 'Plugin-Verwaltung öffnen',
         nodeok   => 'Node.js-Version ist aktuell',
         nodemodules => 'Node.js-Anforderungen der Module',
         nodechecking => 'Node.js-Version wird geprüft ...',
@@ -64,6 +66,8 @@ my %T = $lang eq 'de'
         nodefrom => 'current',
         nodeto   => 'recommended',
         nodelink => 'Open plugin release on GitHub',
+        nodehow  => 'Node.js is set up during plugin installation. To switch, simply install the plugin again over the existing installation (upload the ZIP of the current version in the plugin management, do not uninstall first). Configuration, pairings and additionally installed plugins are kept.',
+        nodeplugins => 'Open plugin management',
         nodeok   => 'Node.js version is up to date',
         nodemodules => "Modules' Node.js requirements",
         nodechecking => 'Checking Node.js version ...',
@@ -105,6 +109,7 @@ print <<"HTML";
   #hb-nodecard.ok     { border: 1px solid rgba(63,174,75,0.5); background: rgba(63,174,75,0.08); }
   #hb-nodecard.error  { border: 1px solid rgba(211,51,51,0.5); background: rgba(211,51,51,0.08); }
   #hb-nodelinkwrap { margin-top: 0.6em; }
+  #hb-nodehow { margin-top: 0.6em; font-size: 0.9em; }
   #hb-nodemodules { max-width: 480px; margin: 1em auto; padding: 1em; border-radius: 10px;
                     border: 1px solid rgba(128,128,128,0.4); font-size: 0.9em; display: none; }
   #hb-nodemodules-title { font-weight: bold; margin-bottom: 0.5em; text-align: center; }
@@ -158,7 +163,9 @@ print <<"HTML";
       card.className = 'update';
       card.innerHTML = '<div>' + "$T{nodehint}" + ': ' + "$T{nodefrom}" + ' ' + escapeHtml(nc.CURRENT || '?')
         + ' &rarr; ' + "$T{nodeto}" + ' ' + escapeHtml(nc.RECOMMENDED || '?') + '</div>'
-        + '<div id="hb-nodelinkwrap"><a href="' + releaseurl + '" target="_blank" rel="noopener">' + "$T{nodelink}" + '</a></div>';
+        + '<div id="hb-nodehow">' + "$T{nodehow}" + '</div>'
+        + '<div id="hb-nodelinkwrap"><a href="/admin/system/plugininstall.cgi">' + "$T{nodeplugins}" + '</a>'
+        + ' &middot; <a href="' + releaseurl + '" target="_blank" rel="noopener">' + "$T{nodelink}" + '</a></div>';
     } else if (nc.CURRENT) {
       card.className = 'ok';
       card.innerHTML = '<div>' + "$T{nodeok}" + ': ' + escapeHtml(nc.CURRENT) + '</div>';
